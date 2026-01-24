@@ -3,12 +3,9 @@ import mongoose from "mongoose";
 const connectDB = async () => {
   try {
     const mongoURI =
-      process.env.MONGODB_URI || "mongodb://localhost:27017/smart-restro";
+      process.env.MONGO_DB_URL || "mongodb://localhost:27017/smart-restro";
 
-    await mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    await mongoose.connect(mongoURI, {});
 
     console.log("MongoDB connected successfully");
   } catch (error) {

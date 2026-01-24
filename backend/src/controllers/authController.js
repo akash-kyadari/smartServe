@@ -1,5 +1,5 @@
 // Register user
-const register = (req, res) => {
+export const register = (req, res) => {
   try {
     const { email, password, name } = req.body;
 
@@ -21,7 +21,7 @@ const register = (req, res) => {
 };
 
 // Login user
-const login = (req, res) => {
+export const login = (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -45,7 +45,7 @@ const login = (req, res) => {
 };
 
 // Logout user
-const logout = (req, res) => {
+export const logout = (req, res) => {
   try {
     // TODO: Invalidate token or clear session
 
@@ -58,7 +58,7 @@ const logout = (req, res) => {
 };
 
 // Get current user
-const getCurrentUser = (req, res) => {
+export const getCurrentUser = (req, res) => {
   try {
     // TODO: Extract user from token/session
     // TODO: Fetch user details from database
@@ -72,7 +72,7 @@ const getCurrentUser = (req, res) => {
 };
 
 // Refresh token
-const refreshToken = (req, res) => {
+export const refreshToken = (req, res) => {
   try {
     const { token } = req.body;
 
@@ -93,10 +93,4 @@ const refreshToken = (req, res) => {
   }
 };
 
-module.exports = {
-  register,
-  login,
-  logout,
-  getCurrentUser,
-  refreshToken,
-};
+
