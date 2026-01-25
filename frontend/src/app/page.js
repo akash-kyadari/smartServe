@@ -336,7 +336,7 @@ const Footer = () => (
 
 export default function Home() {
   return (
-    <div className="min-h-screen font-sans bg-white dark:bg-slate-950 transition-colors duration-300">
+    <div className="min-h-screen font-sans bg-background transition-colors duration-300">
       <Navbar />
       <Hero />
       <BentoGrid />

@@ -113,7 +113,7 @@ export default function CustomerPage() {
     };
 
     return (
-        <div className="min-h-screen bg-[var(--uibg)] pb-24 font-sans text-foreground flex justify-center">
+        <div className="min-h-screen bg-uibg pb-24 font-sans text-foreground flex justify-center">
             <div className="w-full max-w-md bg-white dark:bg-slate-950 min-h-screen shadow-xl relative border-x border-border">
 
                 {/* --- Header --- */}

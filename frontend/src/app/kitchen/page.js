@@ -148,7 +148,7 @@ export default function KitchenPage() {
     if (!isMounted) return <div className="min-h-screen bg-background" />;
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-slate-950 text-foreground p-4 sm:p-6 font-sans transition-colors duration-300">
+        <div className="min-h-screen bg-uibg text-foreground p-4 sm:p-6 font-sans transition-colors duration-300">
             <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4 border-b border-gray-200 dark:border-slate-800 pb-6">
                 <div className="flex items-center gap-4">
                     <Link href="/" className="p-2 bg-white dark:bg-slate-900 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white shadow-sm border border-gray-200 dark:border-slate-800">

@@ -56,7 +56,7 @@ export default function WaiterPage() {
     if (!isMounted) return <div className="min-h-screen bg-background" />;
 
     return (
-        <div className="min-h-screen bg-[var(--uibg)] pb-20 flex justify-center text-foreground font-sans">
+        <div className="min-h-screen bg-uibg pb-20 flex justify-center text-foreground font-sans">
             <div className="w-full max-w-md bg-white dark:bg-slate-950 min-h-screen shadow-2xl relative border-x border-border flex flex-col">
 
                 {/* Header */}
