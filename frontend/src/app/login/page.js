@@ -1,0 +1,193 @@
+"use client";
+
+import React, { useState } from "react";
+import Link from "next/link";
+import { Eye, EyeOff, ArrowRight, Check, Mail, Lock, Github, Chrome } from "lucide-react";
+import { motion } from "framer-motion";
+import clsx from "clsx";
+
+export default function LoginPage() {
+    const [showPassword, setShowPassword] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setTimeout(() => setIsLoading(false), 2000);
+    };
+
+    return (
+        <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
+            {/* Left Side - Form */}
+            <div className="flex flex-col justify-center px-4 sm:px-6 lg:flex-none lg:px-20 xl:px-24 bg-white dark:bg-slate-950 transition-colors duration-300">
+                <div className="mx-auto w-full max-w-sm lg:w-96">
+                    <div className="mb-10 text-center lg:text-left">
+                        <Link href="/" className="inline-flex items-center gap-2 mb-8 group">
+                            <div className="h-8 w-8 bg-sunset rounded-lg flex items-center justify-center text-white font-black text-lg group-hover:scale-110 transition-transform">S</div>
+                            <span className="font-bold text-xl text-gray-900 dark:text-white tracking-tight">Smart Serve</span>
+                        </Link>
+                        <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">
+                            Welcome back
+                        </h2>
+                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                            Don't have an account?{" "}
+                            <a href="#" className="font-medium text-sunset hover:text-orange-600 transition-colors">
+                                Start a 14-day free trial
+                            </a>
+                        </p>
+                    </div>
+
+                    <div className="mt-8">
+                        <div className="mt-6">
+                            <form onSubmit={handleSubmit} className="space-y-6">
+                                <div>
+                                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Email address
+                                    </label>
+                                    <div className="mt-1 relative rounded-md shadow-sm">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                            <Mail size={18} />
+                                        </div>
+                                        <input
+                                            id="email"
+                                            name="email"
+                                            type="email"
+                                            autoComplete="email"
+                                            required
+                                            className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-slate-700 rounded-xl leading-5 bg-white dark:bg-slate-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sunset focus:border-sunset sm:text-sm transition-all dark:text-white"
+                                            placeholder="you@example.com"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Password
+                                    </label>
+                                    <div className="relative rounded-md shadow-sm">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                            <Lock size={18} />
+                                        </div>
+                                        <input
+                                            id="password"
+                                            name="password"
+                                            type={showPassword ? "text" : "password"}
+                                            autoComplete="current-password"
+                                            required
+                                            className="block w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-slate-700 rounded-xl leading-5 bg-white dark:bg-slate-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sunset focus:border-sunset sm:text-sm transition-all dark:text-white"
+                                            placeholder="••••••••"
+                                        />
+                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-gray-400 hover:text-gray-500">
+                                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center">
+                                        <input
+                                            id="remember-me"
+                                            name="remember-me"
+                                            type="checkbox"
+                                            className="h-4 w-4 text-sunset focus:ring-sunset border-gray-300 rounded"
+                                        />
+                                        <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
+                                            Remember me
+                                        </label>
+                                    </div>
+
+                                    <div className="text-sm">
+                                        <a href="#" className="font-medium text-sunset hover:text-orange-600">
+                                            Forgot password?
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <button
+                                        type="submit"
+                                        disabled={isLoading}
+                                        className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-all disabled:opacity-70 disabled:cursor-not-allowed group"
+                                    >
+                                        {isLoading ? (
+                                            <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        ) : (
+                                            <span className="flex items-center gap-2">Sign in <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" /></span>
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <div className="mt-6">
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-gray-300 dark:border-slate-700"></div>
+                                </div>
+                                <div className="relative flex justify-center text-sm">
+                                    <span className="px-2 bg-white dark:bg-slate-950 text-gray-500">Or continue with</span>
+                                </div>
+                            </div>
+
+                            <div className="mt-6 grid grid-cols-2 gap-3">
+                                <button className="w-full inline-flex justify-center py-2.5 px-4 border border-gray-300 dark:border-slate-700 rounded-xl shadow-sm bg-white dark:bg-slate-900 text-sm font-medium text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
+                                    <Chrome size={20} />
+                                    <span className="sr-only">Sign in with Google</span>
+                                </button>
+                                <button className="w-full inline-flex justify-center py-2.5 px-4 border border-gray-300 dark:border-slate-700 rounded-xl shadow-sm bg-white dark:bg-slate-900 text-sm font-medium text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
+                                    <Github size={20} />
+                                    <span className="sr-only">Sign in with GitHub</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Right Side - Visual */}
+            <div className="hidden lg:block relative w-0 flex-1 overflow-hidden bg-gray-900">
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-black z-0 opacity-90" />
+
+                {/* Animated Background Elements */}
+                <div className="absolute top-0 right-0 -mr-20 -mt-20 w-[600px] h-[600px] bg-sunset rounded-full mix-blend-screen filter blur-[100px] opacity-20 animate-blob" />
+                <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-[600px] h-[600px] bg-purple-600 rounded-full mix-blend-screen filter blur-[100px] opacity-20 animate-blob animation-delay-2000" />
+
+                <div className="relative z-10 flex flex-col justify-center h-full px-20 text-white">
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                    >
+                        <div className="h-16 w-16 bg-white/10 backdrop-blur-lg rounded-2xl flex items-center justify-center mb-8 border border-white/10">
+                            <Check size={32} className="text-sunset" />
+                        </div>
+                        <h2 className="text-4xl font-bold mb-6 leading-tight">
+                            Manage your restaurant <br /> like a technology company.
+                        </h2>
+                        <div className="space-y-4">
+                            {["Real-time Kitchen Display System", "QR Code Ordering & Payments", "Inventory & Staff Management"].map((item, i) => (
+                                <div key={i} className="flex items-center gap-3 text-gray-300">
+                                    <div className="h-6 w-6 rounded-full bg-green-500/20 flex items-center justify-center">
+                                        <Check size={14} className="text-green-400" />
+                                    </div>
+                                    {item}
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
+
+                    <div className="mt-20 flex items-center gap-4 text-sm text-gray-500">
+                        <div className="flex -space-x-2">
+                            {[1, 2, 3, 4].map(i => (
+                                <div key={i} className="h-8 w-8 rounded-full border-2 border-gray-900 bg-gray-700" />
+                            ))}
+                        </div>
+                        <p>Trusted by 500+ Restaurants</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
