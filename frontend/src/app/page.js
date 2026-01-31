@@ -20,7 +20,7 @@ const ThemeToggle = () => {
   return (
     <button
       onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-      className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors text-gray-500 dark:text-gray-400"
+      className="p-2 rounded-full hover:bg-accent text-muted-foreground transition-colors"
       aria-label="Toggle Theme"
     >
       {resolvedTheme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
@@ -42,7 +42,7 @@ const Navbar = () => {
     <nav className={clsx(
       "sticky top-0 z-50 transition-all duration-300 border-b",
       scrolled
-        ? "bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-gray-200 dark:border-slate-800 shadow-sm"
+        ? "bg-background/80 backdrop-blur-md border-border shadow-sm"
         : "bg-transparent border-transparent"
     )}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -110,7 +110,7 @@ const Navbar = () => {
 };
 
 const Hero = () => (
-  <section className="relative overflow-hidden pt-16 pb-20 lg:pt-32 lg:pb-28 bg-white dark:bg-slate-950 transition-colors duration-300">
+  <section className="relative overflow-hidden pt-16 pb-20 lg:pt-32 lg:pb-28 bg-background transition-colors duration-300">
     {/* Background Blobs */}
     <div className="absolute -top-24 -left-20 w-96 h-96 bg-orange-100 dark:bg-indigo-900/30 rounded-full mix-blend-multiply dark:mix-blend-lighten filter blur-[128px] opacity-70 animate-blob"></div>
     <div className="absolute top-0 -right-20 w-96 h-96 bg-purple-100 dark:bg-rose-900/30 rounded-full mix-blend-multiply dark:mix-blend-lighten filter blur-[128px] opacity-70 animate-blob animation-delay-2000"></div>
@@ -164,7 +164,7 @@ const Hero = () => (
 );
 
 const BentoGrid = () => (
-  <section id="features" className="py-24 bg-gray-50 dark:bg-slate-900 transition-colors duration-300">
+  <section id="features" className="py-24 bg-muted transition-colors duration-300">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="text-center mb-16 px-4">
         <h2 className="text-base text-sunset font-semibold tracking-wide uppercase">Why Smart Serve?</h2>
@@ -179,7 +179,7 @@ const BentoGrid = () => (
           initial={{ opacity: 0, x: -20 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
-          className="md:col-span-2 md:row-span-2 bg-white dark:bg-slate-950 rounded-3xl p-8 border border-gray-100 dark:border-slate-800 shadow-xl shadow-gray-200/50 dark:shadow-none overflow-hidden relative group"
+          className="md:col-span-2 md:row-span-2 bg-card rounded-3xl p-8 border border-border shadow-xl shadow-gray-200/50 dark:shadow-none overflow-hidden relative group"
         >
           <div className="relative z-10">
             <div className="h-12 w-12 bg-sunset/10 rounded-2xl flex items-center justify-center text-sunset mb-6">
@@ -206,7 +206,7 @@ const BentoGrid = () => (
           initial={{ opacity: 0, x: 20 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
-          className="bg-white dark:bg-slate-950 rounded-3xl p-8 border border-gray-100 dark:border-slate-800 shadow-lg dark:shadow-none relative overflow-hidden group hover:border-sunset/50 transition-colors"
+          className="bg-card rounded-3xl p-8 border border-border shadow-lg dark:shadow-none relative overflow-hidden group hover:border-sunset/50 transition-colors"
         >
           <div className="h-10 w-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 mb-4">
             <Zap size={20} />
@@ -238,7 +238,7 @@ const BentoGrid = () => (
 );
 
 const RoleSelector = () => (
-  <section id="demos" className="py-24 bg-white dark:bg-slate-950 relative transition-colors duration-300">
+  <section id="demos" className="py-24 bg-background relative transition-colors duration-300">
     <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 dark:brightness-0 pointer-events-none"></div>
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
       <div className="text-center mb-16">
@@ -287,7 +287,7 @@ const RoleSelector = () => (
 );
 
 const Footer = () => (
-  <footer className="bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 pt-20 pb-10 transition-colors duration-300">
+  <footer className="bg-muted border-t border-border pt-20 pb-10 transition-colors duration-300">
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-12 mb-16">
         <div className="col-span-2 md:col-span-1">
