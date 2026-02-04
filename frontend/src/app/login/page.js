@@ -2,18 +2,15 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Eye, EyeOff, ArrowRight, Check, Mail, Lock, Github, Chrome } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Mail, Lock, User } from "lucide-react";
 import { motion } from "framer-motion";
 import clsx from "clsx";
 
 export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        setIsLoading(true);
-        setTimeout(() => setIsLoading(false), 2000);
     };
 
     return (
@@ -31,9 +28,9 @@ export default function LoginPage() {
                         </h2>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                             Don't have an account?{" "}
-                            <a href="#" className="font-medium text-sunset hover:text-orange-600 transition-colors">
-                                Start a 14-day free trial
-                            </a>
+                            <Link href="/signup" className="font-medium text-sunset hover:text-orange-600 transition-colors">
+                                Create an account
+                            </Link>
                         </p>
                     </div>
 
@@ -108,14 +105,11 @@ export default function LoginPage() {
                                 <div>
                                     <button
                                         type="submit"
-                                        disabled={isLoading}
                                         className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-all disabled:opacity-70 disabled:cursor-not-allowed group"
                                     >
-                                        {isLoading ? (
-                                            <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        ) : (
+                                        
                                             <span className="flex items-center gap-2">Sign in <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" /></span>
-                                        )}
+                                        
                                     </button>
                                 </div>
                             </form>
@@ -131,14 +125,9 @@ export default function LoginPage() {
                                 </div>
                             </div>
 
-                            <div className="mt-6 grid grid-cols-2 gap-3">
-                                <button className="w-full inline-flex justify-center py-2.5 px-4 border border-gray-300 dark:border-slate-700 rounded-xl shadow-sm bg-white dark:bg-slate-900 text-sm font-medium text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
-                                    <Chrome size={20} />
-                                    <span className="sr-only">Sign in with Google</span>
-                                </button>
-                                <button className="w-full inline-flex justify-center py-2.5 px-4 border border-gray-300 dark:border-slate-700 rounded-xl shadow-sm bg-white dark:bg-slate-900 text-sm font-medium text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
-                                    <Github size={20} />
-                                    <span className="sr-only">Sign in with GitHub</span>
+                            <div className="mt-6 grid grid-cols-1 gap-3">
+                                <button className="w-full inline-flex items-center justify-center py-2.5 px-4 border border-gray-300 dark:border-slate-700 rounded-xl shadow-sm bg-white dark:bg-slate-900 text-sm font-medium text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors" aria-label="Continue with Google">
+                                    <span>Continue with Google</span>
                                 </button>
                             </div>
                         </div>
@@ -147,35 +136,24 @@ export default function LoginPage() {
             </div>
 
             {/* Right Side - Visual */}
-            <div className="hidden lg:block relative w-0 flex-1 overflow-hidden bg-gray-900">
+            <div className="hidden lg:block relative flex-1 overflow-hidden bg-gray-900">
                 <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-black z-0 opacity-90" />
 
                 {/* Animated Background Elements */}
                 <div className="absolute top-0 right-0 -mr-20 -mt-20 w-[600px] h-[600px] bg-sunset rounded-full mix-blend-screen filter blur-[100px] opacity-20 animate-blob" />
                 <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-[600px] h-[600px] bg-purple-600 rounded-full mix-blend-screen filter blur-[100px] opacity-20 animate-blob animation-delay-2000" />
 
-                <div className="relative z-10 flex flex-col justify-center h-full px-20 text-white">
+                <div className="relative z-10 flex flex-col justify-center h-full px-4 sm:px-6 lg:px-20 xl:px-24 text-white">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.2 }}
                     >
                         <div className="h-16 w-16 bg-white/10 backdrop-blur-lg rounded-2xl flex items-center justify-center mb-8 border border-white/10">
-                            <Check size={32} className="text-sunset" />
+                            <User size={32} className="text-sunset" />
                         </div>
-                        <h2 className="text-4xl font-bold mb-6 leading-tight">
-                            Manage your restaurant <br /> like a technology company.
-                        </h2>
-                        <div className="space-y-4">
-                            {["Real-time Kitchen Display System", "QR Code Ordering & Payments", "Inventory & Staff Management"].map((item, i) => (
-                                <div key={i} className="flex items-center gap-3 text-gray-300">
-                                    <div className="h-6 w-6 rounded-full bg-green-500/20 flex items-center justify-center">
-                                        <Check size={14} className="text-green-400" />
-                                    </div>
-                                    {item}
-                                </div>
-                            ))}
-                        </div>
+                        <h2 className="text-4xl font-bold mb-6 leading-tight">Welcome to Smart Serve</h2>
+                        <p className="text-gray-300 max-w-lg">Create your account to get started. This is a UI-only demo with a modern, clean layout.</p>
                     </motion.div>
 
                     <div className="mt-20 flex items-center gap-4 text-sm text-gray-500">
