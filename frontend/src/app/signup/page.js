@@ -1,15 +1,60 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Link from "next/link";
-import { Eye, EyeOff, ArrowRight, Mail, Lock, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Eye, EyeOff, ArrowRight, Mail, Lock, User, Loader2, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
+import useAuthStore from "@/store/useAuthStore";
 
 export default function SignupPage() {
     const [showPassword, setShowPassword] = useState(false);
+    const [formError, setFormError] = useState("");
 
-    const handleSubmit = (e) => {
+    // Use refs for better performance
+    const nameRef = useRef(null);
+    const emailRef = useRef(null);
+    const passwordRef = useRef(null);
+
+    const { signup, isLoading, error: storeError } = useAuthStore();
+    const router = useRouter();
+
+    const validateInputs = () => {
+        const name = nameRef.current.value;
+        const email = emailRef.current.value;
+        const password = passwordRef.current.value;
+
+        if (!name || name.length < 2) {
+            setFormError("Please enter your full name.");
+            return false;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!email || !emailRegex.test(email)) {
+            setFormError("Please enter a valid email address.");
+            return false;
+        }
+
+        if (!password || password.length < 6) {
+            setFormError("Password must be at least 6 characters long.");
+            return false;
+        }
+
+        setFormError("");
+        return true;
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (!validateInputs()) return;
+
+        try {
+            await signup(nameRef.current.value, emailRef.current.value, passwordRef.current.value);
+            router.push("/");
+        } catch (err) {
+            // Error is handled by store and displayed via error state
+        }
     };
 
     return (
@@ -31,10 +76,25 @@ export default function SignupPage() {
 
                     <div className="mt-8">
                         <form onSubmit={handleSubmit} className="space-y-6">
+                            {(storeError || formError) && (
+                                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-xl flex items-center gap-2 text-sm">
+                                    <AlertCircle size={16} />
+                                    <span>{formError || storeError}</span>
+                                </div>
+                            )}
+
                             <div>
                                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Full name</label>
                                 <div className="mt-1">
-                                    <input id="name" name="name" type="text" required className="block w-full py-3 px-3 border border-gray-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sunset sm:text-sm transition-all dark:text-white" placeholder="Your name" />
+                                    <input
+                                        id="name"
+                                        name="name"
+                                        type="text"
+                                        required
+                                        ref={nameRef}
+                                        className="block w-full py-3 px-3 border border-gray-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sunset sm:text-sm transition-all dark:text-white"
+                                        placeholder="Your name"
+                                    />
                                 </div>
                             </div>
 
@@ -44,7 +104,16 @@ export default function SignupPage() {
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                                         <Mail size={18} />
                                     </div>
-                                    <input id="email" name="email" type="email" autoComplete="email" required className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-slate-700 rounded-xl leading-5 bg-white dark:bg-slate-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sunset focus:border-sunset sm:text-sm transition-all dark:text-white" placeholder="you@example.com" />
+                                    <input
+                                        id="email"
+                                        name="email"
+                                        type="email"
+                                        autoComplete="email"
+                                        required
+                                        ref={emailRef}
+                                        className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-slate-700 rounded-xl leading-5 bg-white dark:bg-slate-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sunset focus:border-sunset sm:text-sm transition-all dark:text-white"
+                                        placeholder="you@example.com"
+                                    />
                                 </div>
                             </div>
 
@@ -54,7 +123,16 @@ export default function SignupPage() {
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
                                         <Lock size={18} />
                                     </div>
-                                    <input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="new-password" required className="block w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-slate-700 rounded-xl leading-5 bg-white dark:bg-slate-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sunset focus:border-sunset sm:text-sm transition-all dark:text-white" placeholder="••••••••" />
+                                    <input
+                                        id="password"
+                                        name="password"
+                                        type={showPassword ? "text" : "password"}
+                                        autoComplete="new-password"
+                                        required
+                                        ref={passwordRef}
+                                        className="block w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-slate-700 rounded-xl leading-5 bg-white dark:bg-slate-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sunset focus:border-sunset sm:text-sm transition-all dark:text-white"
+                                        placeholder="••••••••"
+                                    />
                                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                                         <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-gray-400 hover:text-gray-500">
                                             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -64,10 +142,16 @@ export default function SignupPage() {
                             </div>
 
                             <div>
-                                <button type="submit" className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-all disabled:opacity-70 disabled:cursor-not-allowed group">
-                                    
+                                <button
+                                    type="submit"
+                                    disabled={isLoading}
+                                    className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-all disabled:opacity-70 disabled:cursor-not-allowed group"
+                                >
+                                    {isLoading ? (
+                                        <span className="flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Creating account...</span>
+                                    ) : (
                                         <span className="flex items-center gap-2">Create account <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" /></span>
-                                    
+                                    )}
                                 </button>
                             </div>
                         </form>
@@ -104,7 +188,7 @@ export default function SignupPage() {
                             <User size={32} className="text-sunset" />
                         </div>
                         <h2 className="text-4xl font-bold mb-6 leading-tight">Welcome to Smart Serve</h2>
-                        <p className="text-gray-300 max-w-lg">Create your account to get started. This is a UI-only signup page for the starter project.</p>
+                        <p className="text-gray-300 max-w-lg">Create your account to get started. Join thousands of restaurants managing their business efficiently.</p>
                     </motion.div>
                 </div>
             </div>

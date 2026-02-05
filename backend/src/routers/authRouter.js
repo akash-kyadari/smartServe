@@ -1,6 +1,7 @@
 import express from "express";
 const router = express.Router();
-import { registerUser, loginUser, logoutUser, getCurrentUser, refreshToken } from "../controllers/authController.js";
+import { registerUser, loginUser, logoutUser, getCurrentUser } from "../controllers/authController.js";
+import { protect } from "../middleware/authMiddleware.js";
 
 // Registration route
 router.post("/register", registerUser);
@@ -12,9 +13,7 @@ router.post("/login", loginUser);
 router.post("/logout", logoutUser);
 
 // Get current user
-router.get("/me", getCurrentUser);
+router.get("/me", protect, getCurrentUser);
 
-// Refresh token
-router.post("/refresh-token", refreshToken);
 
 export default router;

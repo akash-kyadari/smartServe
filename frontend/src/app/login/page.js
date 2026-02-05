@@ -1,16 +1,54 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Link from "next/link";
-import { Eye, EyeOff, ArrowRight, Mail, Lock, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Eye, EyeOff, ArrowRight, Mail, Lock, User, Loader2, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
-import clsx from "clsx";
+import useAuthStore from "@/store/useAuthStore";
 
 export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
+    const [formError, setFormError] = useState("");
 
-    const handleSubmit = (e) => {
+    // Use refs for better performance
+    const emailRef = useRef(null);
+    const passwordRef = useRef(null);
+
+    const { login, isLoading, error: storeError } = useAuthStore();
+    const router = useRouter();
+
+    const validateInputs = () => {
+        const email = emailRef.current.value;
+        const password = passwordRef.current.value;
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!email || !emailRegex.test(email)) {
+            setFormError("Please enter a valid email address.");
+            return false;
+        }
+
+        if (!password || password.length < 6) {
+            setFormError("Password must be at least 6 characters long.");
+            return false;
+        }
+
+        setFormError("");
+        return true;
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (!validateInputs()) return;
+
+        try {
+            await login(emailRef.current.value, passwordRef.current.value);
+            router.push("/");
+        } catch (err) {
+            // Error is handled by store and displayed via error state
+        }
     };
 
     return (
@@ -37,6 +75,13 @@ export default function LoginPage() {
                     <div className="mt-8">
                         <div className="mt-6">
                             <form onSubmit={handleSubmit} className="space-y-6">
+                                {(storeError || formError) && (
+                                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-xl flex items-center gap-2 text-sm">
+                                        <AlertCircle size={16} />
+                                        <span>{formError || storeError}</span>
+                                    </div>
+                                )}
+
                                 <div>
                                     <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                         Email address
@@ -51,6 +96,7 @@ export default function LoginPage() {
                                             type="email"
                                             autoComplete="email"
                                             required
+                                            ref={emailRef}
                                             className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-slate-700 rounded-xl leading-5 bg-white dark:bg-slate-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sunset focus:border-sunset sm:text-sm transition-all dark:text-white"
                                             placeholder="you@example.com"
                                         />
@@ -71,6 +117,7 @@ export default function LoginPage() {
                                             type={showPassword ? "text" : "password"}
                                             autoComplete="current-password"
                                             required
+                                            ref={passwordRef}
                                             className="block w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-slate-700 rounded-xl leading-5 bg-white dark:bg-slate-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-sunset focus:border-sunset sm:text-sm transition-all dark:text-white"
                                             placeholder="••••••••"
                                         />
@@ -105,11 +152,14 @@ export default function LoginPage() {
                                 <div>
                                     <button
                                         type="submit"
+                                        disabled={isLoading}
                                         className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-all disabled:opacity-70 disabled:cursor-not-allowed group"
                                     >
-                                        
+                                        {isLoading ? (
+                                            <span className="flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Signing in...</span>
+                                        ) : (
                                             <span className="flex items-center gap-2">Sign in <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" /></span>
-                                        
+                                        )}
                                     </button>
                                 </div>
                             </form>
@@ -153,7 +203,7 @@ export default function LoginPage() {
                             <User size={32} className="text-sunset" />
                         </div>
                         <h2 className="text-4xl font-bold mb-6 leading-tight">Welcome to Smart Serve</h2>
-                        <p className="text-gray-300 max-w-lg">Create your account to get started. This is a UI-only demo with a modern, clean layout.</p>
+                        <p className="text-gray-300 max-w-lg">Create your account to get started. Manage your restaurant with ease.</p>
                     </motion.div>
 
                     <div className="mt-20 flex items-center gap-4 text-sm text-gray-500">

@@ -49,12 +49,16 @@ export const registerUser = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Determine initial role (default to "customer" if not provided)
+    // If coming from restro-signup, role might be "owner"
+    const initialRole = role ? [role] : ["customer"];
+
     // Create new user
     const newUser = new User({
       name,
       email,
       password: hashedPassword,
-      role: role || "customer",
+      role: initialRole,
     });
 
     await newUser.save();
@@ -84,7 +88,7 @@ export const registerUser = async (req, res) => {
 // Login user
 export const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
     // Validate input
     if (!email || !password) {
@@ -111,7 +115,28 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    // Generate token
+    // Handle Role Upgrade logic
+    // If a specific role is requested during login (e.g., 'owner' from restro-login)
+    // and the user doesn't have it, but credentials are valid, add the role.
+    // Handle Role Logic
+    if (role) {
+      if (role === 'owner') {
+        // Allow auto-upgrade for owner
+        if (!user.role.includes('owner')) {
+          user.role.push('owner');
+          await user.save();
+        }
+      } else if (['waiter', 'kitchen', 'staff'].includes(role)) {
+        // Strict check for other roles
+        if (!user.role.includes(role)) {
+          return res.status(403).json({
+            message: `Access denied. You are not authorized as a ${role}. Please contact the restaurant owner.`
+          });
+        }
+      }
+    }
+
+    // Generate token with (potentially updated) role
     const token = generateToken(user._id, user.role);
 
     // Set cookie
@@ -147,12 +172,7 @@ export const logoutUser = (req, res) => {
 // Get current user
 export const getCurrentUser = async (req, res) => {
   try {
-    // In a real app, you'd parse the cookie here or use middleware
-    // For now, assuming middleware populates req.user if authentication is required
-    // Since middleware isn't fully set up in this snippet, I'll just check the cookie manually to return something meaningful if possible
-    // or just return the structure. 
-    // Given the user request, I will just keep this simple.
-    res.status(200).json({ message: "User data retrieved", user: req.user || {} });
+    res.status(200).json({ message: "User data retrieved", user: req.user });
   } catch (error) {
     res
       .status(500)
@@ -160,29 +180,4 @@ export const getCurrentUser = async (req, res) => {
   }
 };
 
-// Refresh token
-export const refreshToken = async (req, res) => {
-  try {
-    const token = req.cookies.jwt; // Read from cookie now
 
-    if (!token) {
-      return res.status(400).json({ message: "Token is required" });
-    }
-
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_secret_key");
-      const newToken = generateToken(decoded.id, decoded.role);
-
-      setTokenCookie(res, newToken);
-
-      res.status(200).json({ message: "Token refreshed" });
-    } catch (err) {
-      return res.status(401).json({ message: "Invalid token" });
-    }
-
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error refreshing token", error: error.message });
-  }
-};

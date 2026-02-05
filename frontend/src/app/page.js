@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { Smartphone, Menu, X, Moon, Sun, Zap, TrendingUp } from "lucide-react";
+import { Smartphone, Menu, X, Moon, Sun, Zap, TrendingUp, User, LogOut, Calendar } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
+import useAuthStore from "@/store/useAuthStore";
 
 // --- Components ---
 
@@ -30,21 +31,12 @@ const ThemeToggle = () => {
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
 
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+
+  const { isAuthenticated, logout, user } = useAuthStore();
 
   return (
-    <nav className={clsx(
-      "sticky top-0 z-50 transition-all duration-300 border-b",
-      scrolled
-        ? "bg-background/80 backdrop-blur-md border-border shadow-sm"
-        : "bg-transparent border-transparent"
-    )}>
+    <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border shadow-sm transition-all duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -57,16 +49,37 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-8">
             <a href="#features" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium text-sm transition-colors">Explore</a>
             <a href="#how-it-works" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium text-sm transition-colors">How it works</a>
-            <a href="/business" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium text-sm transition-colors">For Restaurants</a>
+
+            {!isAuthenticated && (
+              <a href="/business" className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium text-sm transition-colors">For Restaurants</a>
+            )}
 
             <div className="h-6 w-px bg-gray-200 dark:bg-slate-800" />
             <ThemeToggle />
 
             <div className="flex items-center gap-4 ml-2">
-              <Link href="/login" className="text-gray-900 dark:text-white font-semibold text-sm hover:underline">Log in</Link>
-              <Link href="/signup" className="bg-sunset text-white px-5 py-2.5 rounded-full font-semibold text-sm hover:opacity-90 transition-all hover:shadow-lg hover:-translate-y-0.5">
-               Get Started
-              </Link>
+              {isAuthenticated ? (
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+                    <User size={18} />
+                    <span>{user?.name || 'User'}</span>
+                  </div>
+                  <button
+                    onClick={logout}
+                    className="text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                    title="Log out"
+                  >
+                    <LogOut size={20} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Link href="/login" className="text-gray-900 dark:text-white font-semibold text-sm hover:underline">Log in</Link>
+                  <Link href="/signup" className="bg-sunset text-white px-5 py-2.5 rounded-full font-semibold text-sm hover:opacity-90 transition-all hover:shadow-lg hover:-translate-y-0.5">
+                    Get Started
+                  </Link>
+                </>
+              )}
             </div>
           </div>
 
@@ -95,12 +108,31 @@ const Navbar = () => {
                   {item}
                 </a>
               ))}
+
+              {!isAuthenticated && (
                 <Link href="/business" className="block px-3 py-3 rounded-md text-base font-medium text-gray-700 dark:text-gray-200 hover:text-gray-900 hover:bg-gray-50 dark:hover:bg-slate-900">For Restaurants</Link>
+              )}
+
               <div className="border-t border-gray-100 dark:border-slate-800 my-2 pt-2 space-y-2">
-                <Link href="/login" className="block px-3 py-3 rounded-md text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-900">Log in</Link>
-                <Link href="/signup" className="block w-full text-center px-4 py-3 rounded-lg text-white bg-sunset font-bold shadow-md shadow-sunset/20">
-                  get Started
-                </Link>
+                {isAuthenticated ? (
+                  <div className="space-y-3 px-3">
+                    <div className="flex items-center gap-3 text-gray-900 dark:text-white font-medium">
+                      <User size={20} />
+                      {user?.name || 'User'}
+                    </div>
+                    <button onClick={logout} className="flex items-center gap-3 text-red-600 dark:text-red-400 w-full text-left">
+                      <LogOut size={20} />
+                      Log out
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <Link href="/login" className="block px-3 py-3 rounded-md text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-900">Log in</Link>
+                    <Link href="/signup" className="block w-full text-center px-4 py-3 rounded-lg text-white bg-sunset font-bold shadow-md shadow-sunset/20">
+                      Get Started
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>
@@ -110,56 +142,74 @@ const Navbar = () => {
   );
 };
 
-const Hero = () => (
-  <section className="relative overflow-hidden pt-16 pb-20 lg:pt-32 lg:pb-28 bg-background transition-colors duration-300">
-    {/* Background Blobs */}
-    <div className="absolute -top-24 -left-20 w-96 h-96 bg-orange-100 dark:bg-indigo-900/30 rounded-full mix-blend-multiply dark:mix-blend-lighten filter blur-[128px] opacity-70 animate-blob"></div>
-    <div className="absolute top-0 -right-20 w-96 h-96 bg-purple-100 dark:bg-rose-900/30 rounded-full mix-blend-multiply dark:mix-blend-lighten filter blur-[128px] opacity-70 animate-blob animation-delay-2000"></div>
+const Hero = () => {
+  const { isAuthenticated } = useAuthStore();
+  return (
+    <section className="relative overflow-hidden pt-16 pb-20 lg:pt-32 lg:pb-28 bg-background transition-colors duration-300">
+      {/* Background Blobs */}
+      <div className="absolute -top-24 -left-20 w-96 h-96 bg-orange-100 dark:bg-indigo-900/30 rounded-full mix-blend-multiply dark:mix-blend-lighten filter blur-[128px] opacity-70 animate-blob"></div>
+      <div className="absolute top-0 -right-20 w-96 h-96 bg-purple-100 dark:bg-rose-900/30 rounded-full mix-blend-multiply dark:mix-blend-lighten filter blur-[128px] opacity-70 animate-blob animation-delay-2000"></div>
 
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
-      >
-        <span className="inline-flex items-center gap-2 py-1 px-3 rounded-full bg-orange-50 dark:bg-orange-950/30 text-sunset border border-orange-100 dark:border-orange-900/50 text-xs font-bold uppercase tracking-wider mb-6 hover:scale-105 transition-transform cursor-default">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sunset opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-sunset"></span>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+        >
+          <span className="inline-flex items-center gap-2 py-1 px-3 rounded-full bg-orange-50 dark:bg-orange-950/30 text-sunset border border-orange-100 dark:border-orange-900/50 text-xs font-bold uppercase tracking-wider mb-6 hover:scale-105 transition-transform cursor-default">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sunset opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-sunset"></span>
+            </span>
+            Try contactless ordering — No app needed
           </span>
-          Try contactless ordering — No app needed
-        </span>
 
-        <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-6 leading-[1.1]">
-          Order, pay, and enjoy —
-          <br className="hidden md:block" /> the easiest way to dine in.
-        </h1>
+          <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-6 leading-[1.1]">
+            {isAuthenticated ? "Ready to dine?" : "Order, pay, and enjoy —"}
+            <br className="hidden md:block" />
+            {isAuthenticated ? "Book your table instantly." : "the easiest way to dine in."}
+          </h1>
 
-        <p className="mt-4 max-w-2xl mx-auto text-lg text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
-          Scan a QR, browse a restaurant's menu, place your order, and pay — all from your phone. Faster service, safer contactless payments, and fewer wait times.
-        </p>
+          <p className="mt-4 max-w-2xl mx-auto text-lg text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
+            {isAuthenticated
+              ? "Find the best restaurants near you, view menus, and book a table for a seamless dining experience."
+              : "Scan a QR, browse a restaurant's menu, place your order, and pay — all from your phone. Faster service, safer contactless payments, and fewer wait times."
+            }
+          </p>
 
-        <div className="flex justify-center gap-4">
-          <Link href="/login" className="px-8 py-3 bg-sunset text-white rounded-full font-bold text-lg shadow-2xl hover:opacity-95 transition-transform hover:-translate-y-1">
-            Order Now
-          </Link>
-          <Link href="/customer-demo" className="px-8 py-3 bg-black text-white rounded-full font-bold text-lg shadow-2xl hover:opacity-95 transition-transform hover:-translate-y-1">
-            Try the Demo
-          </Link>
-        </div>
-
-        <div className="mt-12 pt-8 border-t border-gray-100 dark:border-slate-800/50 flex flex-col items-center">
-          <p className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-4">Loved by diners</p>
-          <div className="flex flex-wrap justify-center gap-6 md:gap-10 text-gray-400 dark:text-slate-600 opacity-75">
-            {["Quick Bites", "Neighborhood Deli", "Cozy Café", "Urban Grill"].map(brand => (
-              <span key={brand} className="font-bold text-lg hover:text-gray-600 dark:hover:text-slate-400 transition-colors cursor-default">{brand}</span>
-            ))}
+          <div className="flex justify-center gap-4">
+            {isAuthenticated ? (
+              <Link href="/restaurants" className="px-8 py-3 bg-sunset text-white rounded-full font-bold text-lg shadow-2xl hover:opacity-95 transition-transform hover:-translate-y-1 flex items-center gap-2">
+                <Calendar size={20} />
+                Book a Table
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="px-8 py-3 bg-sunset text-white rounded-full font-bold text-lg shadow-2xl hover:opacity-95 transition-transform hover:-translate-y-1">
+                  Order Now
+                </Link>
+                <Link href="/customer-demo" className="px-8 py-3 bg-black text-white rounded-full font-bold text-lg shadow-2xl hover:opacity-95 transition-transform hover:-translate-y-1">
+                  Try the Demo
+                </Link>
+              </>
+            )}
           </div>
-        </div>
-      </motion.div>
-    </div>
-  </section>
-);
+
+          {!isAuthenticated && (
+            <div className="mt-12 pt-8 border-t border-gray-100 dark:border-slate-800/50 flex flex-col items-center">
+              <p className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-4">Loved by diners</p>
+              <div className="flex flex-wrap justify-center gap-6 md:gap-10 text-gray-400 dark:text-slate-600 opacity-75">
+                {["Quick Bites", "Neighborhood Deli", "Cozy Café", "Urban Grill"].map(brand => (
+                  <span key={brand} className="font-bold text-lg hover:text-gray-600 dark:hover:text-slate-400 transition-colors cursor-default">{brand}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </motion.div>
+      </div>
+    </section>
+  )
+};
 
 const BentoGrid = () => {
   const [isMobile, setIsMobile] = useState(false);
@@ -292,6 +342,11 @@ const Footer = () => (
 );
 
 export default function Home() {
+  const { checkAuth } = useAuthStore();
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
   return (
     <div className="min-h-screen font-sans bg-background transition-colors duration-300">
       <Navbar />

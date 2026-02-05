@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import authRouter from "./routers/authRouter.js";
+import restaurantRouter from "./routers/restaurantRouter.js";
 import connectDB from "./db.js";
 
 dotenv.config();
@@ -13,7 +14,10 @@ const app = express();
 connectDB();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -24,6 +28,7 @@ app.get("/", (req, res) => {
 
 // Auth routes
 app.use("/api/auth", authRouter);
+app.use("/api/restaurants", restaurantRouter);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

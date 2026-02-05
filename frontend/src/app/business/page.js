@@ -2,11 +2,15 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, ChefHat, CheckCircle, QrCode, ArrowRight, TrendingUp, Zap, Shield, Smartphone } from "lucide-react";
+import { LayoutDashboard, ChefHat, CheckCircle, QrCode, ArrowRight, TrendingUp, Zap, Shield, Smartphone, User, LogOut } from "lucide-react";
 import { motion } from "framer-motion";
+import useAuthStore from "@/store/useAuthStore";
+import { useRouter } from "next/navigation";
 
 export default function BusinessHome() {
     const [isMobile, setIsMobile] = useState(false);
+    const { user, isAuthenticated, logout } = useAuthStore();
+    const router = useRouter();
 
     useEffect(() => {
         const check = () => setIsMobile(window.innerWidth < 768);
@@ -14,6 +18,12 @@ export default function BusinessHome() {
         window.addEventListener('resize', check);
         return () => window.removeEventListener('resize', check);
     }, []);
+
+    const handleLogout = async () => {
+        await logout();
+        router.refresh();
+    };
+
     return (
         <div className="min-h-screen font-sans bg-background transition-colors duration-300">
             <header className="sticky top-0 z-50 bg-white dark:bg-slate-950 border-b border-border">
@@ -25,9 +35,36 @@ export default function BusinessHome() {
                         </div>
 
                         <div className="flex items-center gap-4">
-                        
-                            <Link href="/restro-login" className="text-gray-900 dark:text-white font-semibold text-sm hover:underline">Login</Link>
-                            <Link href="/restro-signup" className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-90">Register</Link>
+                            {isAuthenticated ? (
+                                <div className="flex items-center gap-4">
+                                    <div className="hidden md:flex flex-col items-end mr-2">
+                                        <span className="text-sm font-bold text-gray-900 dark:text-white leading-none">{user?.name}</span>
+                                        <span className="text-xs text-gray-500 capitalize">{user?.role?.includes('owner') ? 'Owner' : user?.role?.[0]} Account</span>
+                                    </div>
+                                    <button
+                                        onClick={handleLogout}
+                                        className="text-gray-500 hover:text-red-500 transition-colors p-2"
+                                        title="Logout"
+                                    >
+                                        <LogOut size={20} />
+                                    </button>
+                                    {user?.role?.includes('owner') ? (
+                                        <Link href="/business/admin" className="bg-gray-900 dark:bg-slate-800 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-black transition-colors flex items-center gap-2">
+                                            <LayoutDashboard size={16} />
+                                            <span>Dashboard</span>
+                                        </Link>
+                                    ) : (
+                                        <Link href="/restro-login" className="bg-sunset text-white px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-90 transition-colors flex items-center gap-2">
+                                            <span>Login as Owner</span>
+                                        </Link>
+                                    )}
+                                </div>
+                            ) : (
+                                <>
+                                    <Link href="/restro-login" className="text-gray-900 dark:text-white font-semibold text-sm hover:underline">Login</Link>
+                                    <Link href="/restro-signup" className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-90">Register</Link>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -68,7 +105,7 @@ export default function BusinessHome() {
                     </div>
                 </div>
 
-                
+
                 {/* Role selector moved here from homepage */}
                 <section id="demos" className="py-12 bg-background relative transition-colors duration-300 mt-12">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -143,7 +180,7 @@ export default function BusinessHome() {
                                     <div className="w-full h-full bg-white dark:bg-slate-950 p-4">
                                         <div className="w-full h-28 bg-gray-100 dark:bg-slate-900 rounded-xl mb-4 animate-pulse" />
                                         <div className="space-y-3">
-                                            {[1,2,3,4].map(i => (
+                                            {[1, 2, 3, 4].map(i => (
                                                 <div key={i} className="flex gap-3 items-center">
                                                     <div className="w-14 h-14 bg-gray-100 dark:bg-slate-900 rounded-lg" />
                                                     <div className="flex-1">
@@ -190,7 +227,7 @@ export default function BusinessHome() {
                     </div>
                 </section>
 
-                
+
 
                 <div className="mt-8 text-center text-sm text-gray-500">
                     <p>If you're a guest, go back to the main site — <Link href="/" className="text-sunset underline">Visit homepage</Link>.</p>
