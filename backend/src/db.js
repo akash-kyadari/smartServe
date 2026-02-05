@@ -1,15 +1,14 @@
-import mongoose from "mongoose";
 
+import mongoose from 'mongoose';
 const connectDB = async () => {
   try {
-    const mongoURI =
-      process.env.MONGO_DB_URL || "mongodb://localhost:27017/smart-restro";
-
-    await mongoose.connect(mongoURI, {});
-
-    console.log("MongoDB connected successfully");
+    // Force IPv4 to avoid potential DNS issues with querySrv
+    const conn = await mongoose.connect(process.env.MONGO_DB_URL, {
+      family: 4,
+    });
+    console.log(`MongoDB Connected`);
   } catch (error) {
-    console.error("MongoDB connection error:", error);
+    console.error(`Error: ${error.message}`);
     process.exit(1);
   }
 };
