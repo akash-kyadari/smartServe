@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LayoutDashboard, ChefHat, CheckCircle, QrCode, ArrowRight, TrendingUp, Zap, Shield, Smartphone, User, LogOut } from "lucide-react";
 import { motion } from "framer-motion";
 import useAuthStore from "@/store/useAuthStore";
+import BusinessRestaurants from "./BusinessRestaurants";
 import { useRouter } from "next/navigation";
 
 export default function BusinessHome() {
@@ -69,6 +70,8 @@ export default function BusinessHome() {
                     </div>
                 </div>
             </header>
+
+            <BusinessRestaurants />
 
             <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
                 <div className="text-center mb-12">

@@ -25,7 +25,7 @@ export default function RestroLogin() {
             await login(email, password, role);
 
             // Redirect based on role
-            if (role === 'owner') router.push('/business/admin');
+            if (role === 'owner') router.push('/business');
             else if (role === 'kitchen') router.push('/kitchen-demo');
             else if (role === 'waiter') router.push('/waiter-demo');
             else router.push('/');
