@@ -6,12 +6,10 @@ import { LayoutDashboard, ChefHat, CheckCircle, QrCode, ArrowRight, TrendingUp, 
 import { motion } from "framer-motion";
 import useAuthStore from "@/store/useAuthStore";
 import BusinessRestaurants from "./BusinessRestaurants";
-import { useRouter } from "next/navigation";
 
 export default function BusinessHome() {
     const [isMobile, setIsMobile] = useState(false);
     const { user, isAuthenticated, logout } = useAuthStore();
-    const router = useRouter();
 
     useEffect(() => {
         const check = () => setIsMobile(window.innerWidth < 768);
@@ -20,60 +18,15 @@ export default function BusinessHome() {
         return () => window.removeEventListener('resize', check);
     }, []);
 
-    const handleLogout = async () => {
-        await logout();
-        router.refresh();
-    };
+    // NOTE: The main navbar is now handled by the Business Layout. 
+    // This page acts as the content for the "/" of the business section (My Restaurants list and promo).
 
     return (
-        <div className="min-h-screen font-sans bg-background transition-colors duration-300">
-            <header className="sticky top-0 z-50 bg-white dark:bg-slate-950 border-b border-border">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center h-16">
-                        <div className="flex-shrink-0 flex items-center gap-2">
-                            <div className="h-8 w-8 bg-sunset rounded-lg flex items-center justify-center text-white font-black text-xl">S</div>
-                            <span className="font-bold text-xl text-gray-900 dark:text-white tracking-tight">Smart Serve — Business</span>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                            {isAuthenticated ? (
-                                <div className="flex items-center gap-4">
-                                    <div className="hidden md:flex flex-col items-end mr-2">
-                                        <span className="text-sm font-bold text-gray-900 dark:text-white leading-none">{user?.name}</span>
-                                        <span className="text-xs text-gray-500 capitalize">{user?.role?.includes('owner') ? 'Owner' : user?.role?.[0]} Account</span>
-                                    </div>
-                                    <button
-                                        onClick={handleLogout}
-                                        className="text-gray-500 hover:text-red-500 transition-colors p-2"
-                                        title="Logout"
-                                    >
-                                        <LogOut size={20} />
-                                    </button>
-                                    {user?.role?.includes('owner') ? (
-                                        <Link href="/business/admin" className="bg-gray-900 dark:bg-slate-800 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-black transition-colors flex items-center gap-2">
-                                            <LayoutDashboard size={16} />
-                                            <span>Dashboard</span>
-                                        </Link>
-                                    ) : (
-                                        <Link href="/restro-login" className="bg-sunset text-white px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-90 transition-colors flex items-center gap-2">
-                                            <span>Login as Owner</span>
-                                        </Link>
-                                    )}
-                                </div>
-                            ) : (
-                                <>
-                                    <Link href="/restro-login" className="text-gray-900 dark:text-white font-semibold text-sm hover:underline">Login</Link>
-                                    <Link href="/restro-signup" className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-90">Register</Link>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </header>
-
+        <div className="min-h-screen bg-background transition-colors duration-300">
+            {/* The restaurant management component handles its own authenticated view vs non-auth placeholder */}
             <BusinessRestaurants />
 
-            <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
                 <div className="text-center mb-12">
                     <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 dark:text-white mb-4">Tools for restaurants, built for operations</h1>
                     <p className="text-lg text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
@@ -121,7 +74,7 @@ export default function BusinessHome() {
                             {[
                                 { title: "Customer", desc: "Scan, Browse & Pay", link: "/customer-demo", icon: QrCode, gradient: "from-orange-400 to-pink-500", features: ["QR ordering", "Secure payments", "Saved receipts"] },
                                 { title: "Kitchen", desc: "Ticket Management", link: "/kitchen-demo", icon: ChefHat, gradient: "from-slate-700 to-slate-900", features: ["Realtime tickets", "Prep timers", "Order batching"] },
-                                { title: "Waiter", desc: "Service & Billing", link: "/waiter-demo", icon: CheckCircle, gradient: "from-blue-500 to-cyan-400", features: ["Table management", "Split bills", "Integrated POS"] },
+                                { title: "Waiters", desc: "Service & Billing", link: "/waiter-demo", icon: CheckCircle, gradient: "from-blue-500 to-cyan-400", features: ["Table management", "Split bills", "Integrated POS"] },
                                 { title: "Manager", desc: "Analytics & Admin", link: "/admin-demo", icon: LayoutDashboard, gradient: "from-emerald-500 to-teal-400", features: ["Revenue reports", "Item performance", "Staff analytics"] },
                             ].map((role) => (
                                 <Link key={role.title} href={role.link} className="group relative overflow-hidden rounded-3xl shadow-2xl transition-transform duration-300 hover:scale-105 h-72 flex flex-col">
@@ -230,12 +183,10 @@ export default function BusinessHome() {
                     </div>
                 </section>
 
-
-
                 <div className="mt-8 text-center text-sm text-gray-500">
                     <p>If you're a guest, go back to the main site — <Link href="/" className="text-sunset underline">Visit homepage</Link>.</p>
                 </div>
-            </main>
+            </div>
         </div>
     );
 }

@@ -79,6 +79,7 @@ export const registerUser = async (req, res) => {
       },
     });
   } catch (error) {
+    console.log("Error in registerUser:", error.message);
     res
       .status(500)
       .json({ message: "Error during registration", error: error.message });
@@ -152,6 +153,7 @@ export const loginUser = async (req, res) => {
       },
     });
   } catch (error) {
+    console.log("Error in loginUser:", error.message);
     res.status(500).json({ message: "Error during login", error: error.message });
   }
 };
@@ -165,6 +167,7 @@ export const logoutUser = (req, res) => {
     });
     res.status(200).json({ message: "Logout successful" });
   } catch (error) {
+    console.log("Error in logoutUser:", error.message);
     res.status(500).json({ message: "Error during logout", error: error.message });
   }
 };
@@ -174,6 +177,7 @@ export const getCurrentUser = async (req, res) => {
   try {
     res.status(200).json({ message: "User data retrieved", user: req.user });
   } catch (error) {
+    console.log("Error in getCurrentUser:", error.message);
     res
       .status(500)
       .json({ message: "Error retrieving user", error: error.message });

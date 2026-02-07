@@ -27,6 +27,7 @@ export const createRestaurant = async (req, res) => {
             restaurant: savedRestaurant,
         });
     } catch (error) {
+        console.log("Error in createRestaurant:", error.message);
         res.status(500).json({ message: "Error creating restaurant", error: error.message });
     }
 };
@@ -37,6 +38,7 @@ export const getMyRestaurants = async (req, res) => {
         const restaurants = await Restaurant.find({ owner: req.user._id });
         res.status(200).json({ restaurants });
     } catch (error) {
+        console.log("Error in getMyRestaurants:", error.message);
         res.status(500).json({ message: "Error fetching restaurants", error: error.message });
     }
 };

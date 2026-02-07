@@ -71,7 +71,7 @@ export default function RestroSignup() {
             <div className="flex flex-col justify-center px-4 sm:px-6 lg:flex-none lg:px-20 xl:px-24 bg-white dark:bg-slate-950 transition-colors duration-300 py-12">
                 <div className="mx-auto w-full max-w-sm lg:w-[28rem]">
                     <div className="mb-10 text-center lg:text-left">
-                        <Link href="/" className="inline-flex items-center gap-2 mb-8 group">
+                        <Link href="/business" className="inline-flex items-center gap-2 mb-8 group">
                             <div className="h-8 w-8 bg-sunset rounded-lg flex items-center justify-center text-white font-black text-lg group-hover:scale-110 transition-transform">S</div>
                             <span className="font-bold text-xl text-gray-900 dark:text-white tracking-tight">Smart Serve</span>
                         </Link>

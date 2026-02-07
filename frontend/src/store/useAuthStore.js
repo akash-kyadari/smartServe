@@ -1,12 +1,13 @@
 import { create } from 'zustand';
+import useRestaurantStore from './useRestaurantStore';
 
-const API_URL = 'http://localhost:3000/api/auth';
+const API_URL = process.env.NEXT_PUBLIC_API_URL + '/api/auth';
 
 const useAuthStore = create((set) => ({
     user: null,
     isAuthenticated: false,
     error: null,
-    isLoading: false,
+    isLoading: true, // Start true to prevent premature redirects while checking auth
 
     signup: async (name, email, password, role) => {
         set({ isLoading: true, error: null });
@@ -67,6 +68,7 @@ const useAuthStore = create((set) => ({
             });
 
             set({ user: null, isAuthenticated: false, isLoading: false });
+            useRestaurantStore.getState().reset();
         } catch (error) {
             set({ error: error.message, isLoading: false });
         }

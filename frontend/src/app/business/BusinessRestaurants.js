@@ -3,14 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { Plus, MapPin, Phone, Clock, Utensils, Check, X, Loader2, Store } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import useAuthStore from "@/store/useAuthStore";
-
-const API_URL = 'http://localhost:3000/api';
+import useRestaurantStore from "@/store/useRestaurantStore";
 
 export default function BusinessRestaurants() {
     const { user, isAuthenticated } = useAuthStore();
-    const [restaurants, setRestaurants] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const { restaurants, isLoading, fetchRestaurants, addRestaurant } = useRestaurantStore();
     const [isCreating, setIsCreating] = useState(false);
     const [showModal, setShowModal] = useState(false);
 
@@ -68,22 +67,7 @@ export default function BusinessRestaurants() {
         return timings;
     };
 
-    const fetchRestaurants = async () => {
-        setIsLoading(true);
-        try {
-            const res = await fetch(`${API_URL}/restaurants/my-restaurants`, {
-                credentials: 'include'
-            });
-            const data = await res.json();
-            if (res.ok) {
-                setRestaurants(data.restaurants || []);
-            }
-        } catch (error) {
-            console.error("Failed to fetch restaurants", error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+
 
     useEffect(() => {
         if (isAuthenticated) fetchRestaurants();
@@ -155,37 +139,25 @@ export default function BusinessRestaurants() {
         };
 
         try {
-            const res = await fetch(`${API_URL}/restaurants`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-                credentials: 'include'
+            await addRestaurant(payload);
+            setShowModal(false);
+            setFormData({
+                name: "",
+                addressStreet: "",
+                addressCity: "",
+                addressState: "",
+                addressPincode: "",
+                gmapLink: "",
+                contact: "",
+                type: "fine-dining",
+                noOfTables: "",
+                startTime: "",
+                endTime: "",
+                ac: true
             });
-
-            if (res.ok) {
-                setShowModal(false);
-                setFormData({
-                    name: "",
-                    addressStreet: "",
-                    addressCity: "",
-                    addressState: "",
-                    addressPincode: "",
-                    gmapLink: "",
-                    contact: "",
-                    type: "fine-dining",
-                    noOfTables: "",
-                    startTime: "",
-                    endTime: "",
-                    ac: true
-                });
-                fetchRestaurants();
-            } else {
-                const errText = await res.text().catch(() => null);
-                alert(errText || "Failed to create restaurant");
-            }
         } catch (error) {
             console.error("Error creating restaurant", error);
-            alert("Error creating restaurant");
+            alert(error.message || "Failed to create restaurant");
         } finally {
             setIsCreating(false);
         }
@@ -272,9 +244,12 @@ export default function BusinessRestaurants() {
                                     <span className="flex items-center gap-1"><Utensils size={14} /> {restro.noOfTables} Tables</span>
                                     {restro.ac && <span className="flex items-center gap-1 text-blue-500"><Check size={14} /> AC</span>}
                                 </div>
-                                <button className="text-sm font-semibold text-gray-900 dark:text-white hover:text-sunset transition-colors">
+                                <Link
+                                    href={`/business/restros/${restro._id}`}
+                                    className="text-sm font-semibold text-gray-900 dark:text-white hover:text-sunset transition-colors"
+                                >
                                     Manage &rarr;
-                                </button>
+                                </Link>
                             </div>
                         </div>
                     ))}
