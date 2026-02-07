@@ -88,18 +88,30 @@ const PopularDishesMock = () => (
 
 export default function RestaurantDashboard() {
     const params = useParams();
-    const { restaurants, fetchRestaurants } = useRestaurantStore();
-    const { user } = useAuthStore();
+    const { restaurants, fetchRestaurants, fetchRestaurantById } = useRestaurantStore();
+    const { user, isAuthenticated } = useAuthStore();
 
     // Find restaurant data
     const currentRestaurant = restaurants.find(r => r._id === params.id);
 
     // Initial fetch if needed
     useEffect(() => {
-        if (user && restaurants.length === 0) {
+        if (!isAuthenticated || !user) return;
+
+        // If we already have the correct restaurant loaded, don't refetch
+        if (currentRestaurant) return;
+
+        const isOwner = user.roles.includes('owner');
+        if (isOwner) {
+            // Owner can fetch all
             fetchRestaurants();
+        } else {
+            // Staff should only fetch this specific restaurant
+            // We should ideally check if params.id matches their workingAt ID
+            // But for now, just fetch by ID
+            fetchRestaurantById(params.id);
         }
-    }, [user, restaurants.length, fetchRestaurants]);
+    }, [user, isAuthenticated, fetchRestaurants, fetchRestaurantById, params.id, currentRestaurant]);
 
     if (!currentRestaurant) {
         return <div className="p-8">Loading restaurant data...</div>;

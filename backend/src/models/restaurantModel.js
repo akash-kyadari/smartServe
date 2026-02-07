@@ -91,8 +91,21 @@ const RestaurantSchema = new mongoose.Schema(
     // Staff (Waiter / Kitchen / Manager)
     staff: [
       {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        role: {
+          type: String,
+          enum: ["manager", "waiter", "kitchen", "staff"],
+          required: true,
+        },
+        shift: {
+          start: String, // e.g., "09:00"
+          end: String,   // e.g., "17:00"
+        },
+        isActive: { type: Boolean, default: true },
+        joinedAt: { type: Date, default: Date.now },
       },
     ],
 

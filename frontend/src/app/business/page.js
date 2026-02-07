@@ -2,14 +2,15 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, ChefHat, CheckCircle, QrCode, ArrowRight, TrendingUp, Zap, Shield, Smartphone, User, LogOut } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { LayoutDashboard, ChefHat, CheckCircle, QrCode, ArrowRight, TrendingUp, Zap, Shield, Smartphone, User, LogOut, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import useAuthStore from "@/store/useAuthStore";
-import BusinessRestaurants from "./BusinessRestaurants";
 
 export default function BusinessHome() {
     const [isMobile, setIsMobile] = useState(false);
-    const { user, isAuthenticated, logout } = useAuthStore();
+    const { user, isAuthenticated, isLoading } = useAuthStore();
+    const router = useRouter();
 
     useEffect(() => {
         const check = () => setIsMobile(window.innerWidth < 768);
@@ -18,13 +19,42 @@ export default function BusinessHome() {
         return () => window.removeEventListener('resize', check);
     }, []);
 
-    // NOTE: The main navbar is now handled by the Business Layout. 
-    // This page acts as the content for the "/" of the business section (My Restaurants list and promo).
+    // Redirect authenticated users to their role-specific pages
+    useEffect(() => {
+        if (!isLoading && isAuthenticated && user) {
+            if (user.roles.includes('owner')) {
+                router.replace('/business/owner');
+            } else if (user.roles.includes('manager')) {
+                router.replace('/business/manager');
+            } else if (user.roles.includes('kitchen')) {
+                router.replace('/business/kitchen');
+            } else if (user.roles.includes('waiter')) {
+                router.replace('/business/waiter');
+            }
+        }
+    }, [isLoading, isAuthenticated, user, router]);
 
+    // Show loading while checking auth
+    if (isLoading) {
+        return (
+            <div className="flex h-screen items-center justify-center">
+                <Loader2 className="animate-spin text-sunset" size={40} />
+            </div>
+        );
+    }
+
+    // If authenticated, show loading while redirecting
+    if (isAuthenticated) {
+        return (
+            <div className="flex h-screen items-center justify-center">
+                <Loader2 className="animate-spin text-sunset" size={40} />
+            </div>
+        );
+    }
+
+    // Show landing page for non-authenticated users
     return (
         <div className="min-h-screen bg-background transition-colors duration-300">
-            {/* The restaurant management component handles its own authenticated view vs non-auth placeholder */}
-            <BusinessRestaurants />
 
             <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
                 <div className="text-center mb-12">

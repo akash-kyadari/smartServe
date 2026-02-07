@@ -7,8 +7,8 @@ const isValidEmail = (email) => {
   return re.test(email);
 };
 
-const generateToken = (id, role) => {
-  return jwt.sign({ id, role }, process.env.JWT_SECRET || "default_secret_key", {
+const generateToken = (id, roles) => {
+  return jwt.sign({ id, roles }, process.env.JWT_SECRET || "default_secret_key", {
     expiresIn: "1d",
   });
 };
@@ -49,22 +49,25 @@ export const registerUser = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Determine initial role (default to "customer" if not provided)
-    // If coming from restro-signup, role might be "owner"
-    const initialRole = role ? [role] : ["customer"];
+    // Determine initial role
+    // Only allow "customer" or "owner" for public registration
+    // Prevent "admin", "manager", "waiter", "kitchen" from being self-assigned
+    const allowedRoles = ["customer", "owner"];
+    const requestedRole = role && allowedRoles.includes(role) ? role : "customer";
+    const initialRoles = [requestedRole];
 
     // Create new user
     const newUser = new User({
       name,
       email,
       password: hashedPassword,
-      role: initialRole,
+      roles: initialRoles,
     });
 
     await newUser.save();
 
     // Generate token
-    const token = generateToken(newUser._id, newUser.role);
+    const token = generateToken(newUser._id, newUser.roles);
 
     // Set cookie
     setTokenCookie(res, token);
@@ -75,7 +78,7 @@ export const registerUser = async (req, res) => {
         id: newUser._id,
         name: newUser.name,
         email: newUser.email,
-        role: newUser.role,
+        roles: newUser.roles,
       },
     });
   } catch (error) {
@@ -104,8 +107,8 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Password must be at least 6 characters long" });
     }
 
-    // Find user in database
-    const user = await User.findOne({ email });
+    // Find user in database and include password for verification
+    const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
@@ -116,29 +119,36 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    // Handle Role Upgrade logic
-    // If a specific role is requested during login (e.g., 'owner' from restro-login)
-    // and the user doesn't have it, but credentials are valid, add the role.
     // Handle Role Logic
     if (role) {
       if (role === 'owner') {
-        // Allow auto-upgrade for owner
-        if (!user.role.includes('owner')) {
-          user.role.push('owner');
+        // Only allow upgrade if user is strictly a customer (no staff roles)
+        const hasStaffRoles = user.roles.some(r => ['manager', 'waiter', 'kitchen', 'staff', 'admin'].includes(r));
+
+        if (hasStaffRoles) {
+          return res.status(403).json({
+            message: "Staff members cannot login as owners with the same account. Please use a separate account."
+          });
+        }
+
+        // Allow auto-upgrade for pure customers
+        if (!user.roles.includes('owner')) {
+          user.roles.push('owner');
           await user.save();
         }
-      } else if (['waiter', 'kitchen', 'staff'].includes(role)) {
-        // Strict check for other roles
-        if (!user.role.includes(role)) {
+      }
+      // For staff roles, we just check if they have it.
+      else if (['waiter', 'kitchen', 'manager', 'staff'].includes(role)) {
+        if (!user.roles.includes(role)) {
           return res.status(403).json({
-            message: `Access denied. You are not authorized as a ${role}. Please contact the restaurant owner.`
+            message: `Access denied. You are not authorized as a ${role}.`
           });
         }
       }
     }
 
     // Generate token with (potentially updated) role
-    const token = generateToken(user._id, user.role);
+    const token = generateToken(user._id, user.roles);
 
     // Set cookie
     setTokenCookie(res, token);
@@ -149,7 +159,8 @@ export const loginUser = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        roles: user.roles,
+        workingAt: user.workingAt,
       },
     });
   } catch (error) {

@@ -1,17 +1,123 @@
 import mongoose from "mongoose";
 
-const userSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    email: { type: String, required: true },
-    password: { type: String, required: true },
-    role: {
-        type: [String],
-        enum: ["customer", "waiter", "owner", "staff", "kitchen", "manager"],
-        default: ["customer"],
-        required: true
-    },
-});
+const UserSchema = new mongoose.Schema(
+    {
+        // =====================
+        // BASIC IDENTITY
+        // =====================
+        name: {
+            type: String,
+            required: true,
+            trim: true,
+        },
 
-const User = mongoose.model("User", userSchema);
+        email: {
+            type: String,
+            required: true,
+            unique: true,
+            lowercase: true,
+            index: true,
+        },
+
+        phone: {
+            type: String,
+            index: true,
+        },
+
+        avatar: String,
+
+        // =====================
+        // AUTH
+        // =====================
+        password: {
+            type: String,
+            required: true,
+            select: false,
+        },
+
+        authProvider: {
+            type: String,
+            enum: ["local", "google", "github"],
+            default: "local",
+        },
+
+        // =====================
+        // ROLES (ARRAY)
+        // =====================
+        roles: [
+            {
+                type: String,
+                enum: ["owner", "manager", "waiter", "kitchen", "customer", "admin"],
+                index: true,
+            },
+        ],
+
+        // =====================
+        // RESTAURANT RELATIONS
+        // =====================
+        ownedRestaurants: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Restaurant",
+            },
+        ],
+
+        workingAt: [
+            {
+                restaurantId: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: "Restaurant",
+                },
+                role: {
+                    type: String,
+                    enum: ["manager", "waiter", "kitchen"],
+                },
+                isActive: {
+                    type: Boolean,
+                    default: true,
+                },
+                joinedAt: {
+                    type: Date,
+                    default: Date.now,
+                },
+            },
+        ],
+
+        // =====================
+        // CUSTOMER SIDE
+        // =====================
+        favoriteRestaurants: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Restaurant",
+            },
+        ],
+
+        orderHistory: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Order",
+            },
+        ],
+
+        // =====================
+        // STATUS
+        // =====================
+        isActive: {
+            type: Boolean,
+            default: true,
+        },
+
+        isBlocked: {
+            type: Boolean,
+            default: false,
+        },
+
+        blockedReason: String,
+    },
+    { timestamps: true }
+);
+
+const User = mongoose.model("User", UserSchema);
 
 export default User;

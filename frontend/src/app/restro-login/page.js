@@ -26,8 +26,9 @@ export default function RestroLogin() {
 
             // Redirect based on role
             if (role === 'owner') router.push('/business');
-            else if (role === 'kitchen') router.push('/kitchen-demo');
-            else if (role === 'waiter') router.push('/waiter-demo');
+            else if (role === 'manager') router.push('/business/manager'); // Managers also go to business dashboard
+            else if (role === 'kitchen') router.push('/business/kitchen');
+            else if (role === 'waiter') router.push('/business/waiter');
             else router.push('/');
 
         } catch (err) {
@@ -106,6 +107,7 @@ export default function RestroLogin() {
                                         className="block w-full pl-10 pr-10 py-3 appearance-none bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sunset sm:text-sm text-gray-900 dark:text-white transition-all cursor-pointer"
                                     >
                                         <option value="owner">Owner</option>
+                                        <option value="manager">Manager</option>
                                         <option value="kitchen">Kitchen</option>
                                         <option value="waiter">Waiter</option>
                                     </select>

@@ -33,11 +33,11 @@ export const protect = async (req, res, next) => {
 // Middleware to restrict access to specific roles
 export const authorize = (...roles) => {
     return (req, res, next) => {
-        // req.user.role is an array of roles. Check if user has at least one of the allowed roles.
-        const hasRole = req.user.role.some(role => roles.includes(role));
+        // req.user.roles is an array of roles. Check if user has at least one of the allowed roles.
+        const hasRole = req.user.roles.some(role => roles.includes(role));
 
         if (!hasRole) {
-            return res.status(403).json({ message: `User role ${req.user.role} is not authorized to access this route` });
+            return res.status(403).json({ message: `User roles ${req.user.roles.join(', ')} do not have authorization to access this route` });
         }
         next();
     };

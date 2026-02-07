@@ -3,7 +3,7 @@
 import React, { useState } from "react"; // Added useState
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, LayoutDashboard, UtensilsCrossed, Users, Settings, ChefHat, User, Menu, X, Monitor } from "lucide-react";
+import { LogOut, LayoutDashboard, UtensilsCrossed, Users, Settings, User, Menu, X, Monitor } from "lucide-react";
 import useAuthStore from "@/store/useAuthStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
@@ -32,6 +32,8 @@ export default function BusinessNavbar({ currentRestaurant }) {
     const router = useRouter();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile menu state
 
+    const isOwner = user?.roles?.includes('owner') || user?.role?.includes('owner');
+
     const handleLogout = async () => {
         await logout();
         router.push('/business');
@@ -52,7 +54,7 @@ export default function BusinessNavbar({ currentRestaurant }) {
                         {currentRestaurant && (
                             <>
                                 <span className="text-gray-300 dark:text-gray-700 mx-2 text-xl">/</span>
-                                <Link href={`/business/restros/${currentRestaurant._id}`} className="flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-colors">
+                                <Link href={`/business/owner/restros/${currentRestaurant._id}`} className="flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-colors">
                                     <span className="font-semibold text-gray-900 dark:text-white truncate max-w-[150px] sm:max-w-[200px]">
                                         {currentRestaurant.name}
                                     </span>
@@ -63,13 +65,12 @@ export default function BusinessNavbar({ currentRestaurant }) {
 
                     {/* Desktop Navigation */}
                     <div className="hidden lg:flex items-center gap-4">
-                        {currentRestaurant ? (
+                        {currentRestaurant && isOwner ? (
                             <nav className="flex items-center gap-1 text-sm font-medium text-muted-foreground mr-4">
-                                <NavLink href={`/business/restros/${currentRestaurant._id}`} icon={LayoutDashboard} label="Dashboard" active={pathname === `/business/restros/${currentRestaurant._id}`} />
-                                <NavLink href={`/business/restros/${currentRestaurant._id}/menu`} icon={UtensilsCrossed} label="Menu" active={pathname.includes('/menu')} />
-                                <NavLink href={`/business/restros/${currentRestaurant._id}/staff`} icon={Users} label="Staff" active={pathname.includes('/staff')} />
-                                <NavLink href={`/business/restros/${currentRestaurant._id}/kitchen`} icon={ChefHat} label="Kitchen" active={pathname.includes('/kitchen')} />
-                                <NavLink href={`/business/restros/${currentRestaurant._id}/settings`} icon={Settings} label="Settings" active={pathname.includes('/settings')} />
+                                <NavLink href={`/business/owner/restros/${currentRestaurant._id}`} icon={LayoutDashboard} label="Dashboard" active={pathname === `/business/owner/restros/${currentRestaurant._id}`} />
+                                <NavLink href={`/business/owner/restros/${currentRestaurant._id}/menu`} icon={UtensilsCrossed} label="Menu" active={pathname.includes('/menu')} />
+                                <NavLink href={`/business/owner/restros/${currentRestaurant._id}/staff`} icon={Users} label="Staff" active={pathname.includes('/staff')} />
+                                <NavLink href={`/business/owner/restros/${currentRestaurant._id}/settings`} icon={Settings} label="Settings" active={pathname.includes('/settings')} />
                             </nav>
                         ) : (
                             <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-muted-foreground mr-4">
@@ -83,7 +84,7 @@ export default function BusinessNavbar({ currentRestaurant }) {
                                 <>
                                     <Link href="/business/profile" className="flex flex-col items-end hover:bg-gray-100 dark:hover:bg-slate-800 px-2 py-1 rounded-lg transition-colors group">
                                         <span className="text-sm font-bold text-gray-900 dark:text-white leading-none group-hover:text-sunset transition-colors">{user?.name}</span>
-                                        <span className="text-xs text-gray-500 capitalize">{user?.role?.includes('owner') ? 'Owner' : user?.role?.[0]}</span>
+                                        <span className="text-xs text-gray-500 capitalize">{isOwner ? 'Owner' : (user?.roles?.[0] || user?.role?.[0])}</span>
                                     </Link>
                                     <button
                                         onClick={handleLogout}
@@ -105,13 +106,13 @@ export default function BusinessNavbar({ currentRestaurant }) {
                     {/* Mobile Actions - Context Aware */}
                     <div className="flex items-center gap-3 lg:hidden">
                         <ThemeToggle />
-                        {!currentRestaurant ? (
+                        {!currentRestaurant || !isOwner ? (
                             // Inline actions for root business page (no side drawer needed)
                             user ? (
                                 <div className="flex items-center gap-3">
                                     <Link href="/business/profile" className="flex flex-col items-end hover:bg-gray-100 dark:hover:bg-slate-800 px-2 py-1 rounded-lg transition-colors group">
                                         <span className="text-sm font-bold text-gray-900 dark:text-white leading-none group-hover:text-sunset transition-colors">{user?.name}</span>
-                                        <span className="text-xs text-gray-500 capitalize">{user?.role?.includes('owner') ? 'Owner' : user?.role?.[0]}</span>
+                                        <span className="text-xs text-gray-500 capitalize">{isOwner ? 'Owner' : (user?.roles?.[0] || user?.role?.[0])}</span>
                                     </Link>
                                     <button
                                         onClick={handleLogout}
@@ -181,7 +182,7 @@ export default function BusinessNavbar({ currentRestaurant }) {
                                             </div>
                                             <div className="overflow-hidden">
                                                 <p className="font-bold text-gray-900 dark:text-white truncate max-w-[150px]">{user?.name}</p>
-                                                <p className="text-xs text-gray-500 capitalize">{user?.role?.includes('owner') ? 'Owner' : user?.role?.[0]}</p>
+                                                <p className="text-xs text-gray-500 capitalize">{isOwner ? 'Owner' : (user?.roles?.[0] || user?.role?.[0])}</p>
                                             </div>
                                         </Link>
                                         <button
@@ -200,20 +201,19 @@ export default function BusinessNavbar({ currentRestaurant }) {
 
                                 {/* Navigation Links Mobile */}
                                 <nav className="space-y-1">
-                                    {currentRestaurant ? (
+                                    {currentRestaurant && isOwner ? (
                                         <>
                                             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2">Manage {currentRestaurant.name}</div>
-                                            <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/restros/${currentRestaurant._id}`} icon={LayoutDashboard} label="Dashboard" active={pathname === `/business/restros/${currentRestaurant._id}`} />
-                                            <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/restros/${currentRestaurant._id}/menu`} icon={UtensilsCrossed} label="Menu Management" active={pathname.includes('/menu')} />
-                                            <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/restros/${currentRestaurant._id}/staff`} icon={Users} label="Staff & Shifts" active={pathname.includes('/staff')} />
-                                            <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/restros/${currentRestaurant._id}/kitchen`} icon={ChefHat} label="Kitchen Display" active={pathname.includes('/kitchen')} />
-                                            <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/restros/${currentRestaurant._id}/settings`} icon={Settings} label="Settings" active={pathname.includes('/settings')} />
+                                            <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/owner/restros/${currentRestaurant._id}`} icon={LayoutDashboard} label="Dashboard" active={pathname === `/business/owner/restros/${currentRestaurant._id}`} />
+                                            <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/owner/restros/${currentRestaurant._id}/menu`} icon={UtensilsCrossed} label="Menu Management" active={pathname.includes('/menu')} />
+                                            <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/owner/restros/${currentRestaurant._id}/staff`} icon={Users} label="Staff & Shifts" active={pathname.includes('/staff')} />
+                                            <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/owner/restros/${currentRestaurant._id}/settings`} icon={Settings} label="Settings" active={pathname.includes('/settings')} />
                                             <div className="pt-4 mt-4 border-t border-border">
-                                                <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href="/business" icon={Monitor} label="Switch Restaurant" />
+                                                <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href="/business/owner" icon={Monitor} label="Switch Restaurant" />
                                             </div>
                                         </>
                                     ) : (
-                                        <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href="/business" icon={LayoutDashboard} label="My Restaurants" active={pathname === "/business"} />
+                                        <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href="/business/owner" icon={LayoutDashboard} label="My Restaurants" active={pathname === "/business/owner"} />
                                     )}
                                 </nav>
                             </div>

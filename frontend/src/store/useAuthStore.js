@@ -84,6 +84,7 @@ const useAuthStore = create((set) => ({
             if (!response.ok) {
                 throw new Error(data.message);
             }
+            console.log(data.user);
             set({ user: data.user, isAuthenticated: true, isLoading: false });
         } catch (error) {
             set({ user: null, isAuthenticated: false, isLoading: false });

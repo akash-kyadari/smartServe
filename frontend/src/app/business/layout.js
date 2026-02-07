@@ -7,20 +7,26 @@ import useRestaurantStore from "@/store/useRestaurantStore";
 import BusinessNavbar from "@/components/business/BusinessNavbar";
 
 export default function BusinessLayout({ children }) {
-    const { isAuthenticated, isLoading: authLoading } = useAuthStore();
-    const { restaurants, fetchRestaurants, isInitialized } = useRestaurantStore();
+    const { isAuthenticated, isLoading: authLoading, user } = useAuthStore();
+    const { restaurants, fetchRestaurants, fetchRestaurantById, isInitialized } = useRestaurantStore();
     const router = useRouter();
     const pathname = usePathname();
 
     useEffect(() => {
-        // Only redirect if we have finished loading and the user is definitely not authenticated
-        if (!authLoading && !isAuthenticated) {
-            // router.push('/business');
-        } else if (isAuthenticated && !isInitialized) {
-            // Fetch restaurants globally for the business section if not already initialized
-            fetchRestaurants();
+        // Only fetch if authenticated and not initialized
+        if (!authLoading && isAuthenticated && !isInitialized && user) {
+            const isOwner = user.roles.includes('owner');
+            if (isOwner) {
+                fetchRestaurants();
+            } else {
+                // For staff, fetch only their assigned restaurant
+                const work = user.workingAt?.[0];
+                if (work?.restaurantId) {
+                    fetchRestaurantById(work.restaurantId);
+                }
+            }
         }
-    }, [isAuthenticated, authLoading, isInitialized, fetchRestaurants]);
+    }, [isAuthenticated, authLoading, isInitialized, user, fetchRestaurants, fetchRestaurantById]);
 
     if (authLoading) {
         return (
@@ -46,17 +52,23 @@ export default function BusinessLayout({ children }) {
     // if (!isAuthenticated) return null;
 
     // Helper to determine if we are in a specific restaurant context
-    // This assumes routes like /business/restros/[id]/...
-    const isRestaurantContext = pathname.startsWith('/business/restros/');
+    // Determine current restaurant for Navbar context
     let currentRestaurant = null;
 
-    if (isRestaurantContext) {
-        // Extract ID from path
-        const parts = pathname.split('/');
-        // parts[0] = "", parts[1] = "business", parts[2] = "restros", parts[3] = "id"
-        if (parts.length >= 4) {
-            const restroId = parts[3];
+    // 1. Check for Owner Path: /business/owner/restros/[id]
+    if (pathname.includes('/business/owner/restros/')) {
+        const parts = pathname.split('/business/owner/restros/');
+        if (parts.length > 1) {
+            const restroId = parts[1].split('/')[0];
             currentRestaurant = restaurants.find(r => r._id === restroId);
+        }
+    }
+    // 2. Check for Staff Roles (if on their dashboard pages)
+    else if (user && (pathname.includes('/business/manager') || pathname.includes('/business/kitchen') || pathname.includes('/business/waiter'))) {
+        // Use the assigned restaurant from user profile
+        const work = user.workingAt?.[0];
+        if (work?.restaurantId) {
+            currentRestaurant = restaurants.find(r => r._id === work.restaurantId);
         }
     }
 

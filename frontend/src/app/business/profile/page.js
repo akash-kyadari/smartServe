@@ -1,12 +1,14 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import useAuthStore from "@/store/useAuthStore";
-import { User, Mail, Shield, Calendar, Edit2, Lock, LogOut } from "lucide-react";
+import useRestaurantStore from "@/store/useRestaurantStore";
+import { User, Mail, Shield, Calendar, Edit2, Lock, LogOut, Briefcase, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function ProfilePage() {
     const { user, logout } = useAuthStore();
+    const { restaurants } = useRestaurantStore();
 
     if (!user) {
         return (
@@ -15,6 +17,10 @@ export default function ProfilePage() {
             </div>
         );
     }
+
+    const isOwner = user.roles?.includes('owner');
+    const workInfo = user.workingAt?.[0];
+    const workplace = !isOwner && workInfo ? restaurants.find(r => r._id === workInfo.restaurantId) : null;
 
     return (
         <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8">
@@ -38,7 +44,7 @@ export default function ProfilePage() {
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{user.name}</h1>
                         <p className="text-sm text-gray-500 font-medium capitalize flex items-center justify-center gap-1">
                             <Shield size={14} />
-                            {user.role?.includes('owner') ? 'Business Owner' : user.role?.[0]}
+                            {isOwner ? 'Business Owner' : (workInfo?.role || user.roles?.[0])}
                         </p>
 
                         <div className="pt-6 flex flex-col gap-3">
@@ -88,7 +94,7 @@ export default function ProfilePage() {
                                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</label>
                                     <div className="p-3 bg-secondary/50 rounded-lg text-sm font-medium border border-transparent hover:border-border transition-colors flex items-center gap-2 capitalize">
                                         <Shield size={16} className="text-gray-400" />
-                                        {user.role?.join(', ')}
+                                        {user.roles?.join(', ')}
                                     </div>
                                 </div>
                                 <div className="space-y-1">
@@ -100,6 +106,48 @@ export default function ProfilePage() {
                             </div>
                         </div>
                     </div>
+
+                    {/* Workplace Info (For Staff) */}
+                    {workplace && (
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-border p-6">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                                <Briefcase size={20} className="text-sunset" />
+                                Workplace Information
+                            </h2>
+
+                            <div className="space-y-4">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Restaurant Name</label>
+                                    <div className="p-3 bg-secondary/50 rounded-lg text-sm font-bold border border-transparent hover:border-border transition-colors">
+                                        {workplace.name}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Location</label>
+                                        <div className="p-3 bg-secondary/50 rounded-lg text-sm font-medium border border-transparent hover:border-border transition-colors flex items-center gap-2">
+                                            <MapPin size={16} className="text-gray-400" />
+                                            {typeof workplace.address === 'object'
+                                                ? `${workplace.address.street}, ${workplace.address.city}`
+                                                : workplace.address || "Address not available"}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Joined At</label>
+                                        <div className="p-3 bg-secondary/50 rounded-lg text-sm font-medium border border-transparent hover:border-border transition-colors flex items-center gap-2">
+                                            <Calendar size={16} className="text-gray-400" />
+                                            {workInfo?.joinedAt ? new Date(workInfo.joinedAt).toLocaleDateString() : 'N/A'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg text-xs text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/30">
+                                    You are currently working as a <span className="font-bold capitalize">{workInfo?.role}</span> here.
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Security Section (Placeholder) */}
                     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-border p-6 opacity-75">
