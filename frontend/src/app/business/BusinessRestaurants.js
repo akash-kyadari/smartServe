@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Plus, MapPin, Phone, Clock, Utensils, Check, X, Loader2, Store } from "lucide-react";
+import { Plus, MapPin, Phone, Clock, Utensils, Check, X, Loader2, Store, Mail, Star } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import useAuthStore from "@/store/useAuthStore";
@@ -22,6 +22,7 @@ export default function BusinessRestaurants() {
         addressPincode: "",
         gmapLink: "",
         contact: "",
+        gstNumber: "",
         type: "fine-dining",
         noOfTables: "",
         startTime: "",
@@ -58,16 +59,42 @@ export default function BusinessRestaurants() {
     };
 
     const formatTimingsForDisplay = (timings) => {
-        if (!timings) return '';
-        // expect formats like 'HH:MM - HH:MM' or already friendly text
-        const parts = timings.split('-').map(p => p.trim());
-        if (parts.length === 2) {
-            return `${formatTime12(parts[0])} - ${formatTime12(parts[1])}`;
+        // New Schema: openingHours object
+        if (timings && typeof timings === 'object' && timings.open && timings.close) {
+            return `${formatTime12(timings.open)} - ${formatTime12(timings.close)}`;
         }
-        return timings;
+
+        if (!timings) return '';
+        // Legacy string format
+        if (typeof timings === 'string') {
+            const parts = timings.split('-').map(p => p.trim());
+            if (parts.length === 2) {
+                return `${formatTime12(parts[0])} - ${formatTime12(parts[1])}`;
+            }
+            return timings;
+        }
+        return '';
     };
 
+    const isRestaurantOpen = (openingHours) => {
+        if (!openingHours || !openingHours.open || !openingHours.close) return false;
 
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+        const openMinutes = parseTimeToMinutes(openingHours.open);
+        const closeMinutes = parseTimeToMinutes(openingHours.close);
+
+        if (openMinutes === null || closeMinutes === null) return false;
+
+        if (closeMinutes < openMinutes) {
+            // Closes next day (e.g., 10 AM to 2 AM)
+            return currentMinutes >= openMinutes || currentMinutes < closeMinutes;
+        } else {
+            // Same day (e.g., 10 AM to 10 PM)
+            return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+        }
+    };
 
     useEffect(() => {
         if (isAuthenticated) fetchRestaurants();
@@ -95,6 +122,13 @@ export default function BusinessRestaurants() {
             errors.contact = "Enter a valid 10-digit mobile number.";
         }
 
+        // gst validation
+        if (!formData.gstNumber || !formData.gstNumber.trim()) {
+            errors.gstNumber = "GST Number is required.";
+        } else if (formData.gstNumber.trim().length !== 15) {
+            errors.gstNumber = "GST Number must be 15 characters long.";
+        }
+
         // address: require at least street + city + state
         if (!formData.addressStreet.trim() || !formData.addressCity.trim() || !formData.addressState.trim()) {
             errors.address = "Please provide street, city and state for the address.";
@@ -119,16 +153,20 @@ export default function BusinessRestaurants() {
         setIsCreating(true);
         setValidationErrors({});
 
-        const addressParts = [formData.addressStreet.trim(), formData.addressCity.trim(), formData.addressState.trim(), formData.addressPincode.trim()].filter(Boolean);
-        const addressCombined = addressParts.join(', ');
-
         const timingsCombined = `${formData.startTime} - ${formData.endTime}`;
 
         const payload = {
             name: formData.name,
-            address: addressCombined,
+            address: {
+                street: formData.addressStreet.trim(),
+                city: formData.addressCity.trim(),
+                state: formData.addressState.trim(),
+                pincode: formData.addressPincode.trim(),
+                country: 'India'
+            },
             gmapLink: formData.gmapLink || undefined,
             contact: contactDigits,
+            gstNumber: formData.gstNumber.trim(),
             type: formData.type,
             noOfTables: Number(tables),
             timings: timingsCombined,
@@ -149,6 +187,7 @@ export default function BusinessRestaurants() {
                 addressPincode: "",
                 gmapLink: "",
                 contact: "",
+                gstNumber: "",
                 type: "fine-dining",
                 noOfTables: "",
                 startTime: "",
@@ -212,47 +251,72 @@ export default function BusinessRestaurants() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {restaurants.map((restro) => (
-                        <div key={restro._id} className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-slate-800 group hover:border-sunset/50 transition-colors">
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 className="font-bold text-lg text-gray-900 dark:text-white">{restro.name}</h3>
-                                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded mt-1 inline-block">
-                                        {restro.type}
-                                    </span>
+                    {restaurants.map((restro) => {
+                        const isOpen = isRestaurantOpen(restro.openingHours || restro.timings);
+                        return (
+                            <div key={restro._id} className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-slate-800 group hover:border-sunset/50 transition-colors">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                        <h3 className="font-bold text-lg text-gray-900 dark:text-white">{restro.name}</h3>
+                                        <div className="flex flex-wrap gap-2 mt-1">
+                                            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                                                {Array.isArray(restro.cuisineType) ? restro.cuisineType.join(', ') : (restro.type || 'Restaurant')}
+                                            </span>
+                                            {restro.ratings?.average > 0 && (
+                                                <span className="flex items-center gap-1 text-xs font-bold text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded">
+                                                    <Star size={10} className="fill-current" /> {restro.ratings.average} ({restro.ratings.totalReviews})
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-xs font-bold ${isOpen ? 'text-green-600' : 'text-red-500'}`}>
+                                            {isOpen ? 'Open' : 'Closed'}
+                                        </span>
+                                        <div className={`h-2.5 w-2.5 rounded-full ${isOpen ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                                    </div>
                                 </div>
-                                <div className={`h-2 w-2 rounded-full ${restro.isActive ? 'bg-green-500' : 'bg-red-500'}`} />
-                            </div>
 
-                            <div className="space-y-3 mb-6">
-                                <div className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-400">
-                                    <MapPin size={16} className="mt-0.5 shrink-0" />
-                                    <span className="line-clamp-2">{restro.address}</span>
+                                <div className="space-y-3 mb-6">
+                                    <div className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-400">
+                                        <MapPin size={16} className="mt-0.5 shrink-0" />
+                                        <span className="line-clamp-2">
+                                            {typeof restro.address === 'string'
+                                                ? restro.address
+                                                : `${restro.address?.street || ''}, ${restro.address?.city || ''}, ${restro.address?.state || ''}`}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+                                        <Clock size={16} />
+                                        <span>{formatTimingsForDisplay(restro.openingHours || restro.timings)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+                                        <Phone size={16} />
+                                        <span>{restro.phone || restro.contact || 'No contact info'}</span>
+                                    </div>
+                                    {restro.email && (
+                                        <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+                                            <Mail size={16} />
+                                            <span className="truncate">{restro.email}</span>
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
-                                    <Clock size={16} />
-                                    <span>{formatTimingsForDisplay(restro.timings)}</span>
-                                </div>
-                                <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
-                                    <Phone size={16} />
-                                    <span>{restro.contact || 'No contact info'}</span>
-                                </div>
-                            </div>
 
-                            <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-slate-800">
-                                <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
-                                    <span className="flex items-center gap-1"><Utensils size={14} /> {restro.noOfTables} Tables</span>
-                                    {restro.ac && <span className="flex items-center gap-1 text-blue-500"><Check size={14} /> AC</span>}
+                                <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-slate-800">
+                                    <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
+                                        <span className="flex items-center gap-1"><Utensils size={14} /> {restro.tables?.length || 0} Tables</span>
+                                        {restro.isAC && <span className="flex items-center gap-1 text-blue-500"><Check size={14} /> AC</span>}
+                                    </div>
+                                    <Link
+                                        href={`/business/restros/${restro._id}`}
+                                        className="text-sm font-semibold text-gray-900 dark:text-white hover:text-sunset transition-colors"
+                                    >
+                                        Manage &rarr;
+                                    </Link>
                                 </div>
-                                <Link
-                                    href={`/business/restros/${restro._id}`}
-                                    className="text-sm font-semibold text-gray-900 dark:text-white hover:text-sunset transition-colors"
-                                >
-                                    Manage &rarr;
-                                </Link>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
@@ -337,6 +401,21 @@ export default function BusinessRestaurants() {
                                                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-sunset outline-none transition-all"
                                                     placeholder="Google Maps link (optional)"
                                                 />
+                                            </div>
+
+                                            <div className="grid grid-cols-1 gap-3">
+                                                <input
+                                                    required
+                                                    type="text"
+                                                    value={formData.gstNumber}
+                                                    onChange={(e) => setFormData({ ...formData, gstNumber: e.target.value.toUpperCase() })}
+                                                    className={`w-full px-4 py-2 rounded-lg border ${validationErrors.gstNumber ? 'border-red-500' : 'border-gray-300'} dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-sunset outline-none transition-all`}
+                                                    placeholder="GST Number (15 chars)"
+                                                    maxLength={15}
+                                                />
+                                                {validationErrors.gstNumber && (
+                                                    <p className="text-sm text-red-500 mt-1">{validationErrors.gstNumber}</p>
+                                                )}
                                             </div>
 
                                             {validationErrors.address && (

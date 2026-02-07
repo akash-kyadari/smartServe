@@ -110,13 +110,16 @@ export default function RestaurantDashboard() {
             {/* Header */}
             <div>
                 <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
-                <p className="text-muted-foreground text-sm">Overview for <span className="font-semibold text-sunset">{currentRestaurant.name}</span></p>
+                <p className="text-muted-foreground text-sm">
+                    Overview for <span className="font-semibold text-sunset">{currentRestaurant.name}</span>
+                    {currentRestaurant.isAC && <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded-full">AC</span>}
+                </p>
             </div>
 
             {/* KPIs - Using Real Data where applicable, Mock for others */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <KPICard title="Total Sales" value="₹0" sub="No data yet" trend="" icon={DollarSign} />
-                <KPICard title="Total Tables" value={currentRestaurant.noOfTables || 0} sub="Capacity" trend="" icon={Utensils} />
+                <KPICard title="Total Tables" value={currentRestaurant.tables?.length || 0} sub="Capacity" trend="" icon={Utensils} />
                 <KPICard title="Pending Orders" value="0" sub="Live updates" trend="" icon={Clock} />
                 <KPICard title="Online Status" value={currentRestaurant.isActive ? "Active" : "Inactive"} sub="Store visibility" trend="" icon={Globe} />
             </div>
