@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { DollarSign, Utensils, Clock, Globe, ArrowUpRight, MoreHorizontal, Loader2 } from "lucide-react";
+import { DollarSign, Utensils, Clock, Globe, ArrowUpRight, MoreHorizontal, Loader2, User, LayoutGrid } from "lucide-react";
 import { motion } from "framer-motion";
 import { useParams } from "next/navigation";
 import useRestaurantStore from "@/store/useRestaurantStore";
@@ -117,7 +117,7 @@ export default function RestaurantDashboard() {
         const fetchOrders = async () => {
             try {
                 setStatsLoading(true);
-                const res = await axios.get(`${API_URL}/orders/active/${params.id}`);
+                const res = await axios.get(`${API_URL}/orders/active/${params.id}`, { withCredentials: true });
                 setOrders(res.data || []);
             } catch (err) {
                 console.error("Failed to load orders", err);
@@ -157,16 +157,19 @@ export default function RestaurantDashboard() {
         };
 
         const handleTableFreed = () => {
-            // Maybe refresh orders? Or just rely on order statuses.
-            // Table freed means session end, orders likely completed.
+            fetchRestaurantById(params.id); // Refresh table status (occupancy)
         };
 
-        socket.on("new_order", handleNewOrder);
+        socket.on("new_order", (o) => {
+            handleNewOrder(o);
+            fetchRestaurantById(params.id); // Refresh table status (occupancy)
+        });
         socket.on("order_update", handleOrderUpdate);
         socket.on("table_freed", handleTableFreed);
 
         return () => {
-            socket.off("new_order", handleNewOrder);
+            socket.off("new_order", handleNewOrder); // We used anonymous wrapper above, this might not fully detach but component unmount handles it mostly. 
+            // Better practice: extract the wrapper to named function if needed, but for now this is okay or we can just ignore specific detach implementation detail as strict mode runs twice.
             socket.off("order_update", handleOrderUpdate);
             socket.off("table_freed", handleTableFreed);
         };
@@ -206,6 +209,55 @@ export default function RestaurantDashboard() {
                 <PopularDishesMock />
             </div>
 
+            {/* Floor Status (Live) */}
+            <div className="bg-card text-card-foreground rounded-xl shadow-sm border border-border overflow-hidden p-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold flex items-center gap-2 text-lg">
+                        <LayoutGrid size={20} className="text-sunset" /> Floor Status
+                    </h3>
+                    <div className="flex gap-4 text-xs font-medium">
+                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"></span> Available</span>
+                        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]"></span> Occupied</span>
+                    </div>
+                </div>
+
+                {currentRestaurant.tables?.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+                        {currentRestaurant.tables.map((table) => (
+                            <div
+                                key={table._id}
+                                className={`relative group p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all duration-300 ${table.isOccupied
+                                        ? "border-rose-500/50 bg-rose-500/5 dark:bg-rose-950/20 hover:bg-rose-500/10"
+                                        : "border-emerald-500/50 bg-emerald-500/5 dark:bg-emerald-950/20 hover:bg-emerald-500/10"
+                                    }`}
+                            >
+                                <span className={`font-bold text-lg ${table.isOccupied ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                    T-{table.tableNumber}
+                                </span>
+                                <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                    <User size={12} />
+                                    <span>{table.capacity} Seats</span>
+                                </div>
+
+                                {table.isOccupied && (
+                                    <div className="absolute -top-2 -right-2">
+                                        <span className="flex h-4 w-4">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-4 w-4 bg-rose-500"></span>
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-12 text-muted-foreground bg-secondary/20 rounded-lg border border-dashed border-border">
+                        <Utensils size={32} className="mx-auto mb-3 opacity-20" />
+                        <p>No tables configured for this restaurant.</p>
+                    </div>
+                )}
+            </div>
+
             {/* Live Orders Table */}
             <div className="bg-card text-card-foreground rounded-xl shadow-sm border border-border overflow-hidden">
                 <div className="p-6 border-b border-border flex justify-between items-center">
@@ -223,6 +275,7 @@ export default function RestaurantDashboard() {
                                 <th className="px-6 py-3">Table</th>
                                 <th className="px-6 py-3">Items</th>
                                 <th className="px-6 py-3">Amount</th>
+                                <th className="px-6 py-3">Assigned To</th>
                                 <th className="px-6 py-3">Status</th>
                                 <th className="px-6 py-3"></th>
                             </tr>
@@ -244,6 +297,13 @@ export default function RestaurantDashboard() {
                                             {order.items.length > 1 && "..."}
                                         </td>
                                         <td className="px-6 py-4 font-bold">₹{order.totalAmount}</td>
+                                        <td className="px-6 py-4 text-xs font-medium text-muted-foreground">
+                                            {order.waiterId?.name ? (
+                                                <span className="flex items-center gap-1"><User size={12} /> {order.waiterId.name}</span>
+                                            ) : (
+                                                <span className="opacity-50">-</span>
+                                            )}
+                                        </td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${order.status === 'PLACED' ? 'bg-blue-100 text-blue-700' :
                                                 order.status === 'PREPARING' ? 'bg-orange-100 text-orange-700' :

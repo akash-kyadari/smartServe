@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import useRestaurantStore from "@/store/useRestaurantStore";
 import useAuthStore from "@/store/useAuthStore";
-import { Loader2, ClipboardList, CheckCircle, Bell, Clock, ChefHat, AlertCircle, User, X } from "lucide-react";
+import { Loader2, ClipboardList, CheckCircle, Bell, Clock, ChefHat, AlertCircle, User, X, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { getSocket } from "@/lib/socket";
@@ -31,7 +31,7 @@ function WaiterPOSPageContent() {
             // Fetch Active Orders
             const fetchOrders = async () => {
                 try {
-                    const res = await axios.get(`${API_URL}/orders/active/${restaurantId}`);
+                    const res = await axios.get(`${API_URL}/orders/active/${restaurantId}`, { withCredentials: true });
                     setOrders(res.data);
                 } catch (err) {
                     console.error("Failed to load active orders", err);
@@ -54,11 +54,19 @@ function WaiterPOSPageContent() {
         };
 
         const handleNewOrder = (newOrder) => {
+            // Filter for Waiters: Only accept if assigned to them (or they are not just a waiter)
+            const isJustWaiter = user.roles.includes('waiter') && !user.roles.includes('owner') && !user.roles.includes('manager');
+            if (isJustWaiter && newOrder.waiterId !== user._id) return;
+
             setOrders(prev => [...prev, newOrder]);
             fetchRestaurantById(restaurantId);
         };
 
         const handleOrderUpdate = (updatedOrder) => {
+            // Filter for Waiters
+            const isJustWaiter = user.roles.includes('waiter') && !user.roles.includes('owner') && !user.roles.includes('manager');
+            if (isJustWaiter && updatedOrder.waiterId !== user._id) return;
+
             setOrders(prev => {
                 const index = prev.findIndex(o => o._id === updatedOrder._id);
                 if (index !== -1) {
@@ -104,7 +112,7 @@ function WaiterPOSPageContent() {
         try {
             // Optimistic Update
             setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status: "SERVED" } : o));
-            await axios.put(`${API_URL}/orders/${orderId}/status`, { status: "SERVED" });
+            await axios.put(`${API_URL}/orders/${orderId}/status`, { status: "SERVED" }, { withCredentials: true });
             // Close modal if order matches
             if (selectedTable?.currentOrderId === orderId) {
                 setSelectedTable(null);
@@ -113,6 +121,21 @@ function WaiterPOSPageContent() {
             console.error(err);
         }
     }
+
+    const handleFreeTable = async (tableId) => {
+        if (!confirm("Are you sure you want to close this session? This will free the table.")) return;
+        try {
+            await axios.post(`${API_URL}/orders/free-table`, {
+                restaurantId,
+                tableId
+            }, { withCredentials: true });
+            setSelectedTable(null);
+            fetchRestaurantById(restaurantId);
+        } catch (err) {
+            console.error(err);
+            alert(err.response?.data?.message || "Failed to close session");
+        }
+    };
 
 
     // Normalize tables data
@@ -425,6 +448,16 @@ function WaiterPOSPageContent() {
                                         Mark Request Addressed
                                     </button>
                                 )}
+
+                                {/* Close Session Button */}
+                                {selectedTable.isOccupied && (
+                                    <button
+                                        onClick={() => handleFreeTable(selectedTable.id)}
+                                        className="w-full mt-4 bg-red-500/10 text-red-600 hover:bg-red-500/20 py-2.5 rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <LogOut size={18} /> Close Session & Free Table
+                                    </button>
+                                )}
                             </div>
                         </motion.div>
                     </div>
@@ -436,7 +469,7 @@ function WaiterPOSPageContent() {
 
 export default function WaiterPOSPage() {
     return (
-        <RoleGuard allowedRoles={['waiter', 'manager']} requireRestaurant={true}>
+        <RoleGuard allowedRoles={['waiter', 'manager', 'owner']} requireRestaurant={true}>
             <WaiterPOSPageContent />
         </RoleGuard>
     );

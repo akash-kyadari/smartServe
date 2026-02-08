@@ -115,12 +115,20 @@ export const updateOrderStatus = async (req, res) => {
 export const freeTable = async (req, res) => {
     try {
         const { restaurantId, tableId } = req.body;
+        const user = req.user; // From protect middleware
 
         const restaurant = await Restaurant.findById(restaurantId);
         if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
 
         const table = restaurant.tables.id(tableId);
         if (!table) return res.status(404).json({ message: "Table not found" });
+
+        // Authorization Check: Waiters can only free their assigned tables
+        if (user.roles.includes('waiter') && !user.roles.includes('owner') && !user.roles.includes('manager')) {
+            if (table.assignedWaiterId && table.assignedWaiterId.toString() !== user._id.toString()) {
+                return res.status(403).json({ message: "You can only close sessions for tables assigned to you." });
+            }
+        }
 
         // Retrieve order to close it if needed
         if (table.currentOrderId) {
@@ -129,9 +137,9 @@ export const freeTable = async (req, res) => {
 
         // Reset Table
         table.isOccupied = false;
-        table.isOccupied = false;
         table.currentOrderId = null;
         table.assignedWaiterId = null; // Clear assigned waiter
+        table.requestService = false; // Clear service request
         await restaurant.save();
 
         // SOCKET: Notify clear
@@ -168,18 +176,47 @@ export const getTableOrders = async (req, res) => {
 export const getRestaurantActiveOrders = async (req, res) => {
     try {
         const { restaurantId } = req.params;
+        const user = req.user; // From protect middleware
 
-        if (!mongoose.Types.ObjectId.isValid(restaurantId)) {
+        // 1. Basic Validation
+        if (!restaurantId || !mongoose.Types.ObjectId.isValid(restaurantId)) {
             return res.status(400).json({ message: "Invalid Restaurant ID" });
         }
 
-        const orders = await Order.find({
+        let query = {
             restaurantId,
             status: { $in: ["PLACED", "PREPARING", "READY", "SERVED", "PAID"] }
-        }).sort({ createdAt: 1 }); // Oldest first for FIFO
+        };
+
+        // 2. Role-Based Filtering (Defensive)
+        try {
+            if (user?.roles?.includes('waiter') &&
+                !user?.roles?.includes('owner') &&
+                !user?.roles?.includes('manager') &&
+                !user?.roles?.includes('kitchen')) {
+
+                // Only for "Pure" Waiters
+                if (user._id) {
+                    query.waiterId = user._id;
+                }
+            }
+        } catch (roleError) {
+            console.warn("[getRestaurantActiveOrders] Role check warning, defaulting to full view:", roleError);
+            // Fallback: Show all orders if role check fails (better than crash)
+        }
+
+        // 3. Execution (With .lean() for performance and safety)
+        // Note: Population removed to prevent 500 errors on invalid refs. 
+        // Frontend handles missing waiterId gracefully.
+        const orders = await Order.find(query)
+            .sort({ createdAt: 1 })
+            .lean();
 
         res.json(orders);
     } catch (error) {
-        res.status(500).json({ message: "Server Error", error: error.message });
+        console.error("[getRestaurantActiveOrders] CRITICAL ERROR:", error);
+        // Return empty array instead of 500 to keep app usable? 
+        // No, return 500 but with clear message so frontend doesn't retry infinitely if its fatal.
+        res.status(500).json({ message: "Server Error Fetching Orders", error: error.message });
     }
 };

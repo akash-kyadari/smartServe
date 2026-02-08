@@ -31,13 +31,20 @@ export const protect = async (req, res, next) => {
 };
 
 // Middleware to restrict access to specific roles
+// Middleware to restrict access to specific roles
 export const authorize = (...roles) => {
     return (req, res, next) => {
+        // Validation: Ensure req.user and req.user.roles exist
+        if (!req.user || !req.user.roles || !Array.isArray(req.user.roles)) {
+            console.error("Access Denied: User has no roles or invalid role structure.", req.user?._id);
+            return res.status(403).json({ message: "Access Denied: User roles not found." });
+        }
+
         // req.user.roles is an array of roles. Check if user has at least one of the allowed roles.
         const hasRole = req.user.roles.some(role => roles.includes(role));
 
         if (!hasRole) {
-            return res.status(403).json({ message: `User roles ${req.user.roles.join(', ')} do not have authorization to access this route` });
+            return res.status(403).json({ message: `Access Denied: Your role (${req.user.roles.join(', ')}) is not authorized.` });
         }
         next();
     };

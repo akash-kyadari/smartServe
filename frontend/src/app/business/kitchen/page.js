@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import useRestaurantStore from "@/store/useRestaurantStore";
 import useAuthStore from "@/store/useAuthStore";
-import { Loader2, ChefHat, Clock, CheckCircle, Flame } from "lucide-react";
+import { Loader2, ChefHat, Clock, CheckCircle, Flame, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { getSocket } from "@/lib/socket"; // Import Socket
@@ -37,7 +37,7 @@ function KitchenPageContent() {
             const fetchOrders = async () => {
                 try {
                     setLoading(true);
-                    const res = await axios.get(`${API_URL}/orders/active/${restaurantId}`);
+                    const res = await axios.get(`${API_URL}/orders/active/${restaurantId}`, { withCredentials: true });
                     setOrders(res.data);
                 } catch (err) {
                     console.error("Failed to load kitchen orders", err);
@@ -97,7 +97,7 @@ function KitchenPageContent() {
             // Optimistic update
             setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status: newStatus } : o));
 
-            await axios.put(`${API_URL}/orders/${orderId}/status`, { status: newStatus });
+            await axios.put(`${API_URL}/orders/${orderId}/status`, { status: newStatus }, { withCredentials: true });
         } catch (err) {
             console.error("Failed to update status", err);
             // Revert handled by socket usually, or explicit fetch here
@@ -159,7 +159,10 @@ function KitchenPageContent() {
                                 >
                                     <div className="flex justify-between items-start">
                                         <span className="font-mono text-xs text-muted-foreground">ID: {order._id.slice(-4)}</span>
-                                        <span className="text-sm font-bold bg-secondary px-2 py-1 rounded">Table {order.tableNo}</span>
+                                        <div className="flex flex-col items-end gap-1">
+                                            <span className="text-sm font-bold bg-secondary px-2 py-1 rounded">Table {order.tableNo}</span>
+                                            {order.waiterId?.name && <span className="text-[10px] text-muted-foreground flex items-center gap-1"><User size={9} /> {order.waiterId.name.split(' ')[0]}</span>}
+                                        </div>
                                     </div>
                                     <div className="space-y-1">
                                         {order.items.map((item, idx) => (
@@ -201,7 +204,10 @@ function KitchenPageContent() {
                                 >
                                     <div className="flex justify-between items-start">
                                         <span className="font-mono text-xs text-muted-foreground">ID: {order._id.slice(-4)}</span>
-                                        <span className="text-sm font-bold bg-secondary px-2 py-1 rounded">Table {order.tableNo}</span>
+                                        <div className="flex flex-col items-end gap-1">
+                                            <span className="text-sm font-bold bg-secondary px-2 py-1 rounded">Table {order.tableNo}</span>
+                                            {order.waiterId?.name && <span className="text-[10px] text-muted-foreground flex items-center gap-1"><User size={9} /> {order.waiterId.name.split(' ')[0]}</span>}
+                                        </div>
                                     </div>
                                     <div className="space-y-1">
                                         {order.items.map((item, idx) => (
@@ -245,7 +251,10 @@ function KitchenPageContent() {
                                 >
                                     <div className="flex justify-between items-start">
                                         <span className="font-mono text-xs text-muted-foreground">ID: {order._id.slice(-4)}</span>
-                                        <span className="text-sm font-bold bg-secondary px-2 py-1 rounded">Table {order.tableNo}</span>
+                                        <div className="flex flex-col items-end gap-1">
+                                            <span className="text-sm font-bold bg-secondary px-2 py-1 rounded">Table {order.tableNo}</span>
+                                            {order.waiterId?.name && <span className="text-[10px] text-muted-foreground flex items-center gap-1"><User size={9} /> {order.waiterId.name.split(' ')[0]}</span>}
+                                        </div>
                                     </div>
                                     <div className="space-y-1">
                                         {order.items.map((item, idx) => (
