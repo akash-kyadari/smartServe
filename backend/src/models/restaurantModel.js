@@ -56,6 +56,11 @@ const RestaurantSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "Order",
         },
+        assignedWaiterId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        requestService: { type: Boolean, default: false },
       },
     ],
 

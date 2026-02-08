@@ -1,38 +1,125 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import useRestaurantStore from "@/store/useRestaurantStore";
 import useAuthStore from "@/store/useAuthStore";
-import { Loader2, ChefHat, Clock } from "lucide-react";
-import { motion } from "framer-motion";
+import { Loader2, ChefHat, Clock, CheckCircle, Flame } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import RoleGuard from "@/components/auth/RoleGuard";
+import { getSocket } from "@/lib/socket"; // Import Socket
+import axios from "axios";
+
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") + "/api";
 
 function KitchenPageContent() {
-    const { fetchRestaurantById, restaurants, isLoading } = useRestaurantStore();
+    const { fetchRestaurantById, restaurants, isLoading: isRestroLoading } = useRestaurantStore();
     const { user } = useAuthStore();
 
-    const restaurantId = user?.workingAt?.[0]?.restaurantId;
+    const rawRestroId = user?.workingAt?.[0]?.restaurantId;
+    const restaurantId = (rawRestroId && typeof rawRestroId === 'object') ? rawRestroId._id : rawRestroId;
     const currentRestaurant = restaurants.find(r => r._id === restaurantId);
 
-    // Mock orders - Replace with real data from API
-    const orders = [
-        { id: 101, table: 'T4', items: ['Truffle Pizza', 'Coke'], status: 'cooking', elapsed: '5m' },
-        { id: 102, table: 'T2', items: ['Spicy Wings'], status: 'new', elapsed: '1m' },
-    ];
+    const [orders, setOrders] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [now, setNow] = useState(Date.now());
 
+    // Update time every minute for "elapsed" calculation
     useEffect(() => {
-        if (user && restaurantId && !currentRestaurant) {
-            fetchRestaurantById(restaurantId);
+        const interval = setInterval(() => setNow(Date.now()), 60000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // 1. Fetch Initial Data
+    useEffect(() => {
+        if (user && restaurantId) {
+            if (!currentRestaurant) fetchRestaurantById(restaurantId);
+
+            const fetchOrders = async () => {
+                try {
+                    setLoading(true);
+                    const res = await axios.get(`${API_URL}/orders/active/${restaurantId}`);
+                    setOrders(res.data);
+                } catch (err) {
+                    console.error("Failed to load kitchen orders", err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+            fetchOrders();
         }
     }, [user, restaurantId, currentRestaurant, fetchRestaurantById]);
 
-    if (isLoading || !currentRestaurant) {
+    // 2. Socket Integration
+    useEffect(() => {
+        if (!restaurantId) return;
+
+        const socket = getSocket();
+        socket.emit("join_staff_room", restaurantId);
+
+        const handleNewOrder = (newOrder) => {
+            setOrders(prev => [...prev, newOrder]);
+            // Play sound?
+        };
+
+        const handleOrderUpdate = (updatedOrder) => {
+            setOrders(prev => {
+                // If Completed/Served, remove from Kitchen View (or move to Done column)
+                if (["SERVED", "COMPLETED", "PAID"].includes(updatedOrder.status)) {
+                    return prev.filter(o => o._id !== updatedOrder._id);
+                }
+                // Update specific order
+                const index = prev.findIndex(o => o._id === updatedOrder._id);
+                if (index !== -1) {
+                    const newOrders = [...prev];
+                    newOrders[index] = updatedOrder;
+                    return newOrders;
+                }
+                // If not found (maybe came in while offline?), add it if active
+                if (["PLACED", "PREPARING", "READY"].includes(updatedOrder.status)) {
+                    return [...prev, updatedOrder];
+                }
+                return prev;
+            });
+        };
+
+        socket.on("new_order", handleNewOrder);
+        socket.on("order_update", handleOrderUpdate);
+
+        return () => {
+            socket.off("new_order", handleNewOrder);
+            socket.off("order_update", handleOrderUpdate);
+        };
+    }, [restaurantId]);
+
+    // Actions
+    const updateStatus = async (orderId, newStatus) => {
+        try {
+            // Optimistic update
+            setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status: newStatus } : o));
+
+            await axios.put(`${API_URL}/orders/${orderId}/status`, { status: newStatus });
+        } catch (err) {
+            console.error("Failed to update status", err);
+            // Revert handled by socket usually, or explicit fetch here
+        }
+    };
+
+    if (loading || isRestroLoading || !currentRestaurant) {
         return (
-            <div className="flex h-screen items-center justify-center bg-background">
-                <Loader2 className="animate-spin text-sunset" size={40} />
+            <div className="flex h-screen items-center justify-center bg-secondary/10">
+                <Loader2 className="animate-spin text-primary" size={40} />
             </div>
         );
     }
+
+    const newOrders = orders.filter(o => o.status === 'PLACED');
+    const cookingOrders = orders.filter(o => o.status === 'PREPARING');
+    const readyOrders = orders.filter(o => o.status === 'READY');
+
+    const getElapsed = (createdAt) => {
+        const minutes = Math.floor((now - new Date(createdAt).getTime()) / 60000);
+        return minutes + 'm';
+    };
 
     return (
         <div className="flex flex-col h-screen bg-secondary/10">
@@ -46,74 +133,137 @@ function KitchenPageContent() {
                     <p className="text-xs text-muted-foreground truncate">{currentRestaurant.name}</p>
                 </div>
                 <div className="flex items-center gap-4">
-                    <div className="bg-blue-100 dark:bg-blue-900/20 text-blue-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-pulse">
-                        <Clock size={12} /> Live Orders
+                    <div className="bg-green-100 dark:bg-green-900/20 text-green-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-pulse">
+                        <Clock size={12} /> Live Orders Connected
                     </div>
                 </div>
             </header>
 
             {/* Orders Area */}
             <main className="flex-1 overflow-x-auto overflow-y-hidden p-6">
-                <div className="flex gap-4 h-full">
+                <div className="flex gap-6 h-full min-w-max">
                     {/* New Orders Column */}
-                    <div className="min-w-[300px] flex-1 flex flex-col gap-4">
-                        <h2 className="font-bold text-muted-foreground uppercase text-sm tracking-wider mb-2">New Orders ({orders.filter(o => o.status === 'new').length})</h2>
-                        {orders.filter(o => o.status === 'new').map(order => (
-                            <motion.div
-                                key={order.id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="bg-card p-4 rounded-xl shadow-lg border-l-4 border-blue-500"
-                            >
-                                <div className="flex justify-between items-start mb-2">
-                                    <span className="font-bold text-lg text-foreground">#{order.id}</span>
-                                    <span className="text-sm font-bold bg-secondary px-2 py-1 rounded text-muted-foreground">{order.table}</span>
-                                </div>
-                                <div className="space-y-1 mb-4">
-                                    {order.items.map((item, idx) => (
-                                        <div key={idx} className="text-lg font-medium text-foreground">{item}</div>
-                                    ))}
-                                </div>
-                                <div className="flex justify-between items-center text-xs text-muted-foreground border-t border-border pt-3">
-                                    <span>{order.elapsed} ago</span>
-                                    <button className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded font-bold transition-colors">Start Cooking</button>
-                                </div>
-                            </motion.div>
-                        ))}
+                    <div className="w-80 flex flex-col gap-4">
+                        <div className="flex items-center justify-between text-muted-foreground uppercase text-xs font-bold tracking-wider mb-2">
+                            <span>New Orders ({newOrders.length})</span>
+                            <div className="h-1 flex-1 bg-blue-500/20 ml-2 rounded-full"></div>
+                        </div>
+                        <AnimatePresence>
+                            {newOrders.map(order => (
+                                <motion.div
+                                    key={order._id}
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, scale: 0.9 }}
+                                    className="bg-card p-4 rounded-xl shadow-sm border-l-4 border-blue-500 flex flex-col gap-3"
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <span className="font-mono text-xs text-muted-foreground">ID: {order._id.slice(-4)}</span>
+                                        <span className="text-sm font-bold bg-secondary px-2 py-1 rounded">Table {order.tableNo}</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        {order.items.map((item, idx) => (
+                                            <div key={idx} className="flex justify-between items-start text-sm">
+                                                <span className="font-medium text-foreground">{item.quantity}x {item.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs text-muted-foreground pt-2 border-t border-border/50">
+                                        <span>{getElapsed(order.createdAt)} ago</span>
+                                        <button
+                                            onClick={() => updateStatus(order._id, "PREPARING")}
+                                            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg font-bold text-xs transition-colors flex items-center gap-1"
+                                        >
+                                            <Flame size={12} /> Start Cooking
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
+                        {newOrders.length === 0 && <div className="text-center text-muted-foreground text-sm py-10 opacity-50">No new orders</div>}
                     </div>
 
                     {/* Cooking Column */}
-                    <div className="min-w-[300px] flex-1 flex flex-col gap-4">
-                        <h2 className="font-bold text-muted-foreground uppercase text-sm tracking-wider mb-2">Cooking ({orders.filter(o => o.status === 'cooking').length})</h2>
-                        {orders.filter(o => o.status === 'cooking').map(order => (
-                            <motion.div
-                                key={order.id}
-                                layoutId={order.id}
-                                className="bg-card p-4 rounded-xl shadow-lg border-l-4 border-orange-500"
-                            >
-                                <div className="flex justify-between items-start mb-2">
-                                    <span className="font-bold text-lg text-foreground">#{order.id}</span>
-                                    <span className="text-sm font-bold bg-secondary px-2 py-1 rounded text-muted-foreground">{order.table}</span>
-                                </div>
-                                <div className="space-y-1 mb-4">
-                                    {order.items.map((item, idx) => (
-                                        <div key={idx} className="text-lg font-medium text-foreground">{item}</div>
-                                    ))}
-                                </div>
-                                <div className="flex justify-between items-center text-xs text-muted-foreground border-t border-border pt-3">
-                                    <span className="text-orange-500 font-bold flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Cooking...</span>
-                                    <button className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded font-bold transition-colors">Done</button>
-                                </div>
-                            </motion.div>
-                        ))}
+                    <div className="w-80 flex flex-col gap-4">
+                        <div className="flex items-center justify-between text-muted-foreground uppercase text-xs font-bold tracking-wider mb-2">
+                            <span>Cooking ({cookingOrders.length})</span>
+                            <div className="h-1 flex-1 bg-orange-500/20 ml-2 rounded-full"></div>
+                        </div>
+                        <AnimatePresence>
+                            {cookingOrders.map(order => (
+                                <motion.div
+                                    key={order._id}
+                                    layoutId={order._id}
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, x: 20 }}
+                                    className="bg-card p-4 rounded-xl shadow-lg border-l-4 border-orange-500 flex flex-col gap-3"
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <span className="font-mono text-xs text-muted-foreground">ID: {order._id.slice(-4)}</span>
+                                        <span className="text-sm font-bold bg-secondary px-2 py-1 rounded">Table {order.tableNo}</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        {order.items.map((item, idx) => (
+                                            <div key={idx} className="flex justify-between items-start text-sm">
+                                                <span className="font-medium text-foreground">{item.quantity}x {item.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs text-muted-foreground pt-2 border-t border-border/50">
+                                        <span className="text-orange-500 font-bold flex items-center gap-1">
+                                            <Loader2 size={12} className="animate-spin" /> Cooking...
+                                        </span>
+                                        <button
+                                            onClick={() => updateStatus(order._id, "READY")}
+                                            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg font-bold text-xs transition-colors flex items-center gap-1"
+                                        >
+                                            <CheckCircle size={12} /> Mark Ready
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
+                        {cookingOrders.length === 0 && <div className="text-center text-muted-foreground text-sm py-10 opacity-50">No orders cooking</div>}
                     </div>
 
-                    {/* Ready Column - Placeholder */}
-                    <div className="min-w-[300px] flex-1 flex flex-col gap-4 opacity-50">
-                        <h2 className="font-bold text-muted-foreground uppercase text-sm tracking-wider mb-2">Done</h2>
-                        <div className="border-2 border-dashed border-border rounded-xl p-8 flex items-center justify-center text-muted-foreground font-medium">
-                            No orders ready
+                    {/* Ready Column */}
+                    <div className="w-80 flex flex-col gap-4">
+                        <div className="flex items-center justify-between text-muted-foreground uppercase text-xs font-bold tracking-wider mb-2">
+                            <span>Ready to Serve ({readyOrders.length})</span>
+                            <div className="h-1 flex-1 bg-green-500/20 ml-2 rounded-full"></div>
                         </div>
+                        <AnimatePresence>
+                            {readyOrders.map(order => (
+                                <motion.div
+                                    key={order._id}
+                                    layoutId={order._id}
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.9 }}
+                                    className="bg-card p-4 rounded-xl shadow-sm border-l-4 border-green-500 flex flex-col gap-3 opacity-90"
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <span className="font-mono text-xs text-muted-foreground">ID: {order._id.slice(-4)}</span>
+                                        <span className="text-sm font-bold bg-secondary px-2 py-1 rounded">Table {order.tableNo}</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        {order.items.map((item, idx) => (
+                                            <div key={idx} className="flex justify-between items-start text-sm text-muted-foreground">
+                                                <span className="font-medium ">{item.quantity}x {item.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs text-muted-foreground pt-2 border-t border-border/50">
+                                        <span className="text-green-600 font-bold flex items-center gap-1">
+                                            <CheckCircle size={12} /> Ready
+                                        </span>
+                                        {/* Kitchen only sees Ready status, Waiter marks Served */}
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
+                        {readyOrders.length === 0 && <div className="text-center text-muted-foreground text-sm py-10 opacity-50">No ready orders</div>}
                     </div>
                 </div>
             </main>
@@ -123,7 +273,7 @@ function KitchenPageContent() {
 
 export default function KitchenPage() {
     return (
-        <RoleGuard allowedRoles={['kitchen', 'manager']} requireRestaurant={true}>
+        <RoleGuard allowedRoles={['kitchen', 'manager', 'owner']} requireRestaurant={true}>
             <KitchenPageContent />
         </RoleGuard>
     );

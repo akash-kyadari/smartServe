@@ -1,5 +1,6 @@
 import Restaurant from "../models/RestaurantModel.js";
 import User from "../models/UserModel.js";
+import { io } from "../socket/socket.js";
 
 // Create a new restaurant
 export const createRestaurant = async (req, res) => {
@@ -61,7 +62,6 @@ export const createRestaurant = async (req, res) => {
         const newRestaurant = new Restaurant({
             name,
             // Address is expected to be an object from frontend now, but if it comes as string (legacy compatibility or error), handle it.
-            // However, we will update frontend to send object.
             address: typeof address === 'object' ? address : {
                 street: address,
                 city: 'Unknown',
@@ -128,7 +128,7 @@ export const getMyRestaurants = async (req, res) => {
     }
 };
 
-// Get single restaurant by ID
+// Get single restaurant by ID (Protected - for Owner/Staff)
 export const getRestaurantById = async (req, res) => {
     try {
         const restaurant = await Restaurant.findById(req.params.id).populate({
@@ -175,5 +175,101 @@ export const updateRestaurant = async (req, res) => {
     } catch (error) {
         console.log("Error in updateRestaurant:", error.message);
         res.status(500).json({ success: false, message: "Error updating restaurant", error: error.message });
+    }
+};
+
+// ==========================================
+// PUBLIC CONTROLLERS (For Customer/Guest)
+// ==========================================
+
+// Get all active restaurants (For Landing Page)
+export const getAllRestaurants = async (req, res) => {
+    try {
+        const restaurants = await Restaurant.find({ isActive: true })
+            .select("name address cuisineType isAC logo coverImage openingHours settings isOpen ratings")
+            .sort({ "ratings.average": -1 });
+
+        res.status(200).json({ success: true, restaurants });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error fetching restaurants", error: error.message });
+    }
+};
+
+// Get public details (For Menu Page)
+export const getRestaurantDetailsPublic = async (req, res) => {
+    try {
+        const restaurant = await Restaurant.findById(req.params.id)
+            .select("-owner -staff -analytics -orders -paymentSettings.platformCommissionPercent");
+
+        if (!restaurant) {
+            return res.status(404).json({ success: false, message: "Restaurant not found" });
+        }
+        res.status(200).json({ success: true, restaurant });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error fetching restaurant", error: error.message });
+    }
+};
+
+// Check Table Status (For QR Scan Landing)
+export const checkTableStatus = async (req, res) => {
+    try {
+        const { id, tableId } = req.params;
+        const restaurant = await Restaurant.findById(id);
+
+        if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+
+        // Find table subdocument
+        const table = restaurant.tables.id(tableId);
+        if (!table) return res.status(404).json({ message: "Table not found" });
+
+        res.status(200).json({
+            success: true,
+            table: {
+                _id: table._id,
+                tableNumber: table.tableNumber,
+                capacity: table.capacity,
+                isOccupied: table.isOccupied,
+                currentOrderId: table.currentOrderId,
+                requestService: table.requestService
+            },
+            restaurant: {
+                _id: restaurant._id,
+                name: restaurant.name,
+                settings: restaurant.settings
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
+};
+
+// Toggle Table Service (Call Waiter)
+export const toggleTableService = async (req, res) => {
+    try {
+        const { id, tableId } = req.params;
+        const { active } = req.body; // true to call, false to resolve
+
+        const restaurant = await Restaurant.findById(id);
+        if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+
+        const table = restaurant.tables.id(tableId);
+        if (!table) return res.status(404).json({ message: "Table not found" });
+
+        table.requestService = active;
+        await restaurant.save();
+
+        // Notify Staff
+        io.to(`restro_staff_${id}`).emit("table_service_update", {
+            tableId,
+            requestService: active,
+            tableNumber: table.tableNumber
+        });
+
+        // Notify Customer (Table Room)
+        io.to(`table_${id}_${tableId}`).emit("table_service_update", { requestService: active });
+
+        res.status(200).json({ success: true, message: active ? "Waiter called" : "Request resolved" });
+    } catch (error) {
+        res.status(500).json({ message: "Server Error", error: error.message });
     }
 };

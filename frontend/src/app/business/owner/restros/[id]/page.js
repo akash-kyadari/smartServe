@@ -1,11 +1,15 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { DollarSign, Utensils, Clock, Globe, ArrowUpRight, MoreHorizontal } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { DollarSign, Utensils, Clock, Globe, ArrowUpRight, MoreHorizontal, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useParams } from "next/navigation";
 import useRestaurantStore from "@/store/useRestaurantStore";
 import useAuthStore from "@/store/useAuthStore";
+import { getSocket } from "@/lib/socket";
+import axios from "axios";
+
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") + "/api";
 
 const KPICard = ({ title, value, sub, icon: Icon, trend }) => (
     <div className="bg-card text-card-foreground rounded-xl p-6 shadow-sm border border-border relative overflow-hidden group">
@@ -91,31 +95,91 @@ export default function RestaurantDashboard() {
     const { restaurants, fetchRestaurants, fetchRestaurantById } = useRestaurantStore();
     const { user, isAuthenticated } = useAuthStore();
 
+    // Data State
+    const [orders, setOrders] = useState([]);
+    const [statsLoading, setStatsLoading] = useState(true);
+
     // Find restaurant data
     const currentRestaurant = restaurants.find(r => r._id === params.id);
 
-    // Initial fetch if needed
+    // Initial fetch
     useEffect(() => {
         if (!isAuthenticated || !user) return;
 
-        // If we already have the correct restaurant loaded, don't refetch
-        if (currentRestaurant) return;
-
-        const isOwner = user.roles.includes('owner');
-        if (isOwner) {
-            // Owner can fetch all
-            fetchRestaurants();
-        } else {
-            // Staff should only fetch this specific restaurant
-            // We should ideally check if params.id matches their workingAt ID
-            // But for now, just fetch by ID
-            fetchRestaurantById(params.id);
+        // Fetch Restro details logic
+        if (!currentRestaurant) {
+            const isOwner = user.roles.includes('owner');
+            if (isOwner) fetchRestaurants();
+            else fetchRestaurantById(params.id);
         }
+
+        // Fetch Orders
+        const fetchOrders = async () => {
+            try {
+                setStatsLoading(true);
+                const res = await axios.get(`${API_URL}/orders/active/${params.id}`);
+                setOrders(res.data || []);
+            } catch (err) {
+                console.error("Failed to load orders", err);
+            } finally {
+                setStatsLoading(false);
+            }
+        };
+
+        fetchOrders();
     }, [user, isAuthenticated, fetchRestaurants, fetchRestaurantById, params.id, currentRestaurant]);
 
+    // Socket Integration
+    useEffect(() => {
+        if (!params.id) return;
+
+        const socket = getSocket();
+        socket.emit("join_staff_room", params.id);
+
+        const handleNewOrder = (newOrder) => {
+            setOrders(prev => [newOrder, ...prev]);
+        };
+
+        const handleOrderUpdate = (updatedOrder) => {
+            setOrders(prev => {
+                // If Completed/Paid, remove from Active View?
+                // Owner might want to see them turn green. 
+                // Let's keep them but update status.
+                // Or if we want strictly "Active List", remove if Completed.
+                // Let's update status for now.
+                const exists = prev.find(o => o._id === updatedOrder._id);
+                if (exists) {
+                    return prev.map(o => o._id === updatedOrder._id ? updatedOrder : o);
+                }
+                // If not found, add (maybe came while offline)
+                return [updatedOrder, ...prev];
+            });
+        };
+
+        const handleTableFreed = () => {
+            // Maybe refresh orders? Or just rely on order statuses.
+            // Table freed means session end, orders likely completed.
+        };
+
+        socket.on("new_order", handleNewOrder);
+        socket.on("order_update", handleOrderUpdate);
+        socket.on("table_freed", handleTableFreed);
+
+        return () => {
+            socket.off("new_order", handleNewOrder);
+            socket.off("order_update", handleOrderUpdate);
+            socket.off("table_freed", handleTableFreed);
+        };
+    }, [params.id]);
+
+
     if (!currentRestaurant) {
-        return <div className="p-8">Loading restaurant data...</div>;
+        return <div className="p-8 flex justify-center"><Loader2 className="animate-spin" /></div>;
     }
+
+    // Calc stats from active orders
+    const pendingCount = orders.filter(o => ["PLACED", "PREPARING"].includes(o.status)).length;
+    const activeRevenue = orders.reduce((acc, o) => acc + (o.totalAmount || 0), 0);
 
     return (
         <div className="space-y-8">
@@ -128,11 +192,11 @@ export default function RestaurantDashboard() {
                 </p>
             </div>
 
-            {/* KPIs - Using Real Data where applicable, Mock for others */}
+            {/* KPIs */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <KPICard title="Total Sales" value="₹0" sub="No data yet" trend="" icon={DollarSign} />
+                <KPICard title="Projected Revenue" value={`₹${activeRevenue}`} sub="From active orders" trend="" icon={DollarSign} />
                 <KPICard title="Total Tables" value={currentRestaurant.tables?.length || 0} sub="Capacity" trend="" icon={Utensils} />
-                <KPICard title="Pending Orders" value="0" sub="Live updates" trend="" icon={Clock} />
+                <KPICard title="Pending Orders" value={pendingCount} sub="Needs Attention" trend="" icon={Clock} />
                 <KPICard title="Online Status" value={currentRestaurant.isActive ? "Active" : "Inactive"} sub="Store visibility" trend="" icon={Globe} />
             </div>
 
@@ -142,10 +206,13 @@ export default function RestaurantDashboard() {
                 <PopularDishesMock />
             </div>
 
-            {/* Recent Orders Table */}
+            {/* Live Orders Table */}
             <div className="bg-card text-card-foreground rounded-xl shadow-sm border border-border overflow-hidden">
                 <div className="p-6 border-b border-border flex justify-between items-center">
-                    <h3 className="font-bold">Live Orders (Mock)</h3>
+                    <h3 className="font-bold flex items-center gap-2">
+                        Live Orders
+                        {statsLoading && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
+                    </h3>
                     <button className="text-sm text-sunset font-medium hover:underline">View All</button>
                 </div>
                 <div className="overflow-x-auto">
@@ -161,30 +228,39 @@ export default function RestaurantDashboard() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                            {/* Mock Data */}
-                            {[
-                                { id: "#2045", table: "T-12", items: "Pizza, Coke...", amt: "₹550", status: "Cooking" },
-                                { id: "#2044", table: "T-04", items: "Wings, Salad", amt: "₹890", status: "Ready" },
-                            ].map((row) => (
-                                <tr key={row.id} className="hover:bg-secondary/50 transition-colors">
-                                    <td className="px-6 py-4 font-medium">{row.id}</td>
-                                    <td className="px-6 py-4 text-muted-foreground">{row.table}</td>
-                                    <td className="px-6 py-4 text-muted-foreground">{row.items}</td>
-                                    <td className="px-6 py-4 font-bold">{row.amt}</td>
-                                    <td className="px-6 py-4">
-                                        <span className={
-                                            row.status === 'Cooking' ? 'text-orange-600 dark:text-orange-400 font-semibold' :
-                                                row.status === 'Ready' ? 'text-green-600 dark:text-green-400 font-semibold' :
-                                                    'text-muted-foreground font-semibold'
-                                        }>
-                                            {row.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button className="text-muted-foreground hover:text-foreground"><MoreHorizontal size={18} /></button>
+                            {orders.length === 0 ? (
+                                <tr>
+                                    <td colSpan="6" className="px-6 py-8 text-center text-muted-foreground">
+                                        No active orders
                                     </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                orders.map((order) => (
+                                    <tr key={order._id} className="hover:bg-secondary/50 transition-colors">
+                                        <td className="px-6 py-4 font-medium font-mono">#{order._id.slice(-4)}</td>
+                                        <td className="px-6 py-4 text-muted-foreground">Table {order.tableNo}</td>
+                                        <td className="px-6 py-4 text-muted-foreground">
+                                            {order.items.map(i => `${i.quantity}x ${i.name}`).join(", ").slice(0, 30)}
+                                            {order.items.length > 1 && "..."}
+                                        </td>
+                                        <td className="px-6 py-4 font-bold">₹{order.totalAmount}</td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${order.status === 'PLACED' ? 'bg-blue-100 text-blue-700' :
+                                                order.status === 'PREPARING' ? 'bg-orange-100 text-orange-700' :
+                                                    order.status === 'READY' ? 'bg-green-100 text-green-700' :
+                                                        order.status === 'SERVED' ? 'bg-purple-100 text-purple-700' :
+                                                            order.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' :
+                                                                'bg-gray-100 text-gray-700'
+                                                }`}>
+                                                {order.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button className="text-muted-foreground hover:text-foreground"><MoreHorizontal size={18} /></button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
