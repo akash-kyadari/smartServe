@@ -6,7 +6,7 @@ import useRestaurantStore from "@/store/useRestaurantStore";
 import useAuthStore from "@/store/useAuthStore";
 import {
     Save, MapPin, Phone, Mail, Clock, LayoutGrid,
-    CreditCard, Power, ShieldCheck, Loader2
+    CreditCard, Power, ShieldCheck, Loader2, Users, Plus, Trash2, Armchair
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -40,6 +40,8 @@ export default function SettingsPage() {
         acceptsCash: true,
     });
 
+    const [tables, setTables] = useState([]);
+
     useEffect(() => {
         if (!restaurant && restaurants.length === 0) {
             fetchRestaurants();
@@ -63,6 +65,7 @@ export default function SettingsPage() {
                 acceptsOnline: restaurant.paymentSettings?.acceptsOnline !== undefined ? restaurant.paymentSettings.acceptsOnline : true,
                 acceptsCash: restaurant.paymentSettings?.acceptsCash !== undefined ? restaurant.paymentSettings.acceptsCash : true,
             });
+            setTables(restaurant.tables || []);
         }
     }, [restaurant, restaurants.length, fetchRestaurants, user]);
 
@@ -72,6 +75,30 @@ export default function SettingsPage() {
             ...prev,
             [name]: type === "checkbox" ? checked : value
         }));
+    };
+
+    const handleTableChange = (index, field, value) => {
+        const newTables = [...tables];
+        newTables[index] = { ...newTables[index], [field]: value };
+        setTables(newTables);
+    };
+
+    const addTable = () => {
+        const lastTableNumber = tables.length > 0 ? tables[tables.length - 1].tableNumber : 0;
+        setTables([...tables, {
+            tableNumber: lastTableNumber + 1,
+            capacity: 4,
+            isOccupied: false
+        }]);
+        setSuccessMessage("Table added. Don't forget to save changes.");
+        setTimeout(() => setSuccessMessage(""), 3000);
+    };
+
+    const removeTable = () => {
+        if (tables.length === 0) return;
+        setTables(tables.slice(0, -1));
+        setSuccessMessage("Table removed. Don't forget to save changes.");
+        setTimeout(() => setSuccessMessage(""), 3000);
     };
 
     const handleSubmit = async (e) => {
@@ -111,7 +138,11 @@ export default function SettingsPage() {
                 acceptsCash: formData.acceptsCash,
                 serviceChargePercent: restaurant?.paymentSettings?.serviceChargePercent || 0,
                 platformCommissionPercent: restaurant?.paymentSettings?.platformCommissionPercent || 0
-            }
+            },
+            tables: tables.map(t => ({
+                ...t,
+                capacity: Number(t.capacity) || 2
+            }))
         };
 
         try {
@@ -151,13 +182,25 @@ export default function SettingsPage() {
             </div>
 
             {successMessage && (
-                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-4 py-3 rounded-lg text-sm font-medium">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className="fixed bottom-6 right-6 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2"
+                >
+                    <ShieldCheck size={18} />
                     {successMessage}
                 </motion.div>
             )}
 
             {errorMessage && (
-                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-4 py-3 rounded-lg text-sm font-medium">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className="fixed bottom-6 right-6 z-50 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2"
+                >
+                    <Power size={18} className="rotate-45" />
                     {errorMessage}
                 </motion.div>
             )}
@@ -370,6 +413,65 @@ export default function SettingsPage() {
                             </div>
                         </div>
                     </div>
+                </div>
+
+                {/* Table Management */}
+                <div className="bg-card text-card-foreground p-6 rounded-xl border border-border shadow-sm space-y-4 md:col-span-2">
+                    <div className="flex justify-between items-center border-b border-border pb-3">
+                        <h3 className="font-semibold text-lg flex items-center gap-2">
+                            <Armchair size={18} className="text-sunset" /> Table Management
+                        </h3>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={removeTable}
+                                disabled={tables.length === 0}
+                                className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                                title="Remove last table"
+                            >
+                                <Trash2 size={18} />
+                            </button>
+                            <button
+                                onClick={addTable}
+                                className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors flex items-center gap-1"
+                                title="Add updated table"
+                            >
+                                <Plus size={18} /> <span className="text-sm font-medium">Add Table</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {tables.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                            <p>No tables configured.</p>
+                            <button onClick={addTable} className="text-sunset font-medium hover:underline mt-2">Add your first table</button>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                            {tables.map((table, index) => (
+                                <div key={index} className="bg-secondary/30 p-4 rounded-xl border border-transparent hover:border-sunset/50 transition-all group">
+                                    <div className="flex flex-col items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center shadow-sm text-muted-foreground group-hover:text-sunset transition-colors">
+                                            <span className="font-bold text-sm">T{table.tableNumber}</span>
+                                        </div>
+
+                                        <div className="w-full space-y-1">
+                                            <label className="text-xs text-muted-foreground text-center block">Capacity</label>
+                                            <div className="relative">
+                                                <Users size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={table.capacity}
+                                                    onChange={(e) => handleTableChange(index, "capacity", e.target.value === "" ? "" : parseInt(e.target.value))}
+                                                    className="w-full bg-background pl-8 pr-2 py-1.5 rounded-lg text-sm text-center focus:outline-none focus:ring-1 focus:ring-sunset border border-border/50"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
