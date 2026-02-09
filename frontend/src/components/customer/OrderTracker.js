@@ -3,12 +3,16 @@ import { CheckCircle, Clock, ChefHat, Utensils } from "lucide-react";
 
 export default function OrderTracker({ order }) {
     const STATUS_CONFIG = {
-        PLACED: { label: "Order Sent", description: "Waiting for confirmation", icon: CheckCircle, progress: 10, color: "text-blue-500", bg: "bg-blue-500" },
+        PLACED: { label: "Order Sent", description: "Waiting for confirmation", icon: Clock, progress: 10, color: "text-blue-500", bg: "bg-blue-500" },
         PREPARING: { label: "Preparing", description: "Kitchen is cooking your meal", icon: ChefHat, progress: 45, color: "text-orange-500", bg: "bg-orange-500" },
         READY: { label: "Ready to Serve", description: "Waiter is bringing your food", icon: Utensils, progress: 80, color: "text-green-500", bg: "bg-green-500" },
         SERVED: { label: "Served", description: "Enjoy your meal!", icon: CheckCircle, progress: 100, color: "text-primary", bg: "bg-primary" },
+        PAID: { label: "Paid", description: "Payment received", icon: CheckCircle, progress: 100, color: "text-emerald-500", bg: "bg-emerald-500" }, // Added status
         COMPLETED: { label: "Completed", description: "Session ended", icon: CheckCircle, progress: 100, color: "text-gray-500", bg: "bg-gray-500" },
     };
+
+    // Check for paymentStatus specifically if status is SERVED but paid?
+    // The backend update sets status to PAID. So this key is sufficient.
 
     const config = STATUS_CONFIG[order.status] || STATUS_CONFIG.PLACED;
     const Icon = config.icon;

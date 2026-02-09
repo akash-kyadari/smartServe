@@ -184,6 +184,77 @@ export default function RestaurantDashboard() {
     const pendingCount = orders.filter(o => ["PLACED", "PREPARING"].includes(o.status)).length;
     const activeRevenue = orders.reduce((acc, o) => acc + (o.totalAmount || 0), 0);
 
+    const activeList = orders.filter(o => ["PLACED", "PREPARING", "READY", "SERVED"].includes(o.status));
+    const completedList = orders.filter(o => ["PAID", "COMPLETED"].includes(o.status)).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+
+    const OrderTable = ({ title, data, emptyMsg }) => (
+        <div className="bg-card text-card-foreground rounded-xl shadow-sm border border-border overflow-hidden">
+            <div className="p-6 border-b border-border flex justify-between items-center">
+                <h3 className="font-bold flex items-center gap-2">
+                    {title}
+                    <span className="bg-secondary text-xs px-2 py-0.5 rounded-full text-muted-foreground">{data.length}</span>
+                </h3>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-secondary/50 text-muted-foreground font-medium uppercase text-xs">
+                        <tr>
+                            <th className="px-6 py-3">Order ID</th>
+                            <th className="px-6 py-3">Table</th>
+                            <th className="px-6 py-3">Items</th>
+                            <th className="px-6 py-3">Amount</th>
+                            <th className="px-6 py-3">Assigned To</th>
+                            <th className="px-6 py-3">Status</th>
+                            <th className="px-6 py-3">Time</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                        {data.length === 0 ? (
+                            <tr>
+                                <td colSpan="7" className="px-6 py-8 text-center text-muted-foreground">
+                                    {emptyMsg}
+                                </td>
+                            </tr>
+                        ) : (
+                            data.map((order) => (
+                                <tr key={order._id} className="hover:bg-secondary/50 transition-colors">
+                                    <td className="px-6 py-4 font-medium font-mono">#{order._id.slice(-4)}</td>
+                                    <td className="px-6 py-4 text-muted-foreground">Table {order.tableNo}</td>
+                                    <td className="px-6 py-4 text-muted-foreground">
+                                        {order.items?.map(i => `${i.quantity}x ${i.name}`).join(", ").slice(0, 30)}
+                                        {order.items?.length > 1 && "..."}
+                                    </td>
+                                    <td className="px-6 py-4 font-bold">₹{order.totalAmount}</td>
+                                    <td className="px-6 py-4 text-xs font-medium text-muted-foreground">
+                                        {order.waiterId?.name ? (
+                                            <span className="flex items-center gap-1"><User size={12} /> {order.waiterId.name}</span>
+                                        ) : (
+                                            <span className="opacity-50">-</span>
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${order.status === 'PLACED' ? 'bg-blue-100 text-blue-700' :
+                                                order.status === 'PREPARING' ? 'bg-orange-100 text-orange-700' :
+                                                    order.status === 'READY' ? 'bg-green-100 text-green-700' :
+                                                        order.status === 'SERVED' ? 'bg-purple-100 text-purple-700' :
+                                                            order.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' :
+                                                                'bg-gray-100 text-gray-700'
+                                            }`}>
+                                            {order.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-xs text-muted-foreground">
+                                        {new Date(order.updatedAt || order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
     return (
         <div className="space-y-8">
             {/* Header */}
@@ -227,8 +298,8 @@ export default function RestaurantDashboard() {
                             <div
                                 key={table._id}
                                 className={`relative group p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all duration-300 ${table.isOccupied
-                                        ? "border-rose-500/50 bg-rose-500/5 dark:bg-rose-950/20 hover:bg-rose-500/10"
-                                        : "border-emerald-500/50 bg-emerald-500/5 dark:bg-emerald-950/20 hover:bg-emerald-500/10"
+                                    ? "border-rose-500/50 bg-rose-500/5 dark:bg-rose-950/20 hover:bg-rose-500/10"
+                                    : "border-emerald-500/50 bg-emerald-500/5 dark:bg-emerald-950/20 hover:bg-emerald-500/10"
                                     }`}
                             >
                                 <span className={`font-bold text-lg ${table.isOccupied ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
@@ -258,72 +329,10 @@ export default function RestaurantDashboard() {
                 )}
             </div>
 
-            {/* Live Orders Table */}
-            <div className="bg-card text-card-foreground rounded-xl shadow-sm border border-border overflow-hidden">
-                <div className="p-6 border-b border-border flex justify-between items-center">
-                    <h3 className="font-bold flex items-center gap-2">
-                        Live Orders
-                        {statsLoading && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
-                    </h3>
-                    <button className="text-sm text-sunset font-medium hover:underline">View All</button>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-secondary/50 text-muted-foreground font-medium uppercase text-xs">
-                            <tr>
-                                <th className="px-6 py-3">Order ID</th>
-                                <th className="px-6 py-3">Table</th>
-                                <th className="px-6 py-3">Items</th>
-                                <th className="px-6 py-3">Amount</th>
-                                <th className="px-6 py-3">Assigned To</th>
-                                <th className="px-6 py-3">Status</th>
-                                <th className="px-6 py-3"></th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                            {orders.length === 0 ? (
-                                <tr>
-                                    <td colSpan="6" className="px-6 py-8 text-center text-muted-foreground">
-                                        No active orders
-                                    </td>
-                                </tr>
-                            ) : (
-                                orders.map((order) => (
-                                    <tr key={order._id} className="hover:bg-secondary/50 transition-colors">
-                                        <td className="px-6 py-4 font-medium font-mono">#{order._id.slice(-4)}</td>
-                                        <td className="px-6 py-4 text-muted-foreground">Table {order.tableNo}</td>
-                                        <td className="px-6 py-4 text-muted-foreground">
-                                            {order.items.map(i => `${i.quantity}x ${i.name}`).join(", ").slice(0, 30)}
-                                            {order.items.length > 1 && "..."}
-                                        </td>
-                                        <td className="px-6 py-4 font-bold">₹{order.totalAmount}</td>
-                                        <td className="px-6 py-4 text-xs font-medium text-muted-foreground">
-                                            {order.waiterId?.name ? (
-                                                <span className="flex items-center gap-1"><User size={12} /> {order.waiterId.name}</span>
-                                            ) : (
-                                                <span className="opacity-50">-</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${order.status === 'PLACED' ? 'bg-blue-100 text-blue-700' :
-                                                order.status === 'PREPARING' ? 'bg-orange-100 text-orange-700' :
-                                                    order.status === 'READY' ? 'bg-green-100 text-green-700' :
-                                                        order.status === 'SERVED' ? 'bg-purple-100 text-purple-700' :
-                                                            order.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' :
-                                                                'bg-gray-100 text-gray-700'
-                                                }`}>
-                                                {order.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button className="text-muted-foreground hover:text-foreground"><MoreHorizontal size={18} /></button>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+            {/* Orders Tables */}
+            <div className="grid grid-cols-1 gap-8">
+                <OrderTable title="Active Kitchen Orders" data={activeList} emptyMsg="No active orders" />
+                <OrderTable title="Completed / Paid Orders" data={completedList} emptyMsg="No completed orders today" />
             </div>
         </div>
     );

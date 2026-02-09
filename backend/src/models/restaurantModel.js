@@ -61,6 +61,7 @@ const RestaurantSchema = new mongoose.Schema(
           ref: "User",
         },
         requestService: { type: Boolean, default: false },
+        requestBill: { type: Boolean, default: false },
       },
     ],
 

@@ -273,3 +273,31 @@ export const toggleTableService = async (req, res) => {
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 };
+
+// Toggle Bill Request
+export const toggleTableBill = async (req, res) => {
+    try {
+        const { id, tableId } = req.params;
+        const { active } = req.body; // true to request, false to cancel/resolve
+
+        const restaurant = await Restaurant.findById(id);
+        if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+
+        const table = restaurant.tables.id(tableId);
+        if (!table) return res.status(404).json({ message: "Table not found" });
+
+        table.requestBill = active;
+        await restaurant.save();
+
+        // Notify Staff
+        io.to(`restro_staff_${id}`).emit("table_bill_update", {
+            tableId,
+            requestBill: active,
+            tableNumber: table.tableNumber
+        });
+
+        res.status(200).json({ success: true, message: active ? "Bill requested" : "Bill request resolved" });
+    } catch (error) {
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
+};

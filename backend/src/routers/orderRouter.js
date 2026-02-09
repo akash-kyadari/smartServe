@@ -1,5 +1,5 @@
 import express from "express";
-import { placeOrder, updateOrderStatus, freeTable, getTableOrders, getRestaurantActiveOrders } from "../controllers/orderController.js";
+import { placeOrder, updateOrderStatus, freeTable, getTableOrders, getRestaurantActiveOrders, markTableAsPaid } from "../controllers/orderController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -7,6 +7,7 @@ const router = express.Router();
 // Staff Routes (Protected) - Must come before parameterized routes to avoid conflicts
 router.get("/active/:restaurantId", protect, authorize('owner', 'manager', 'waiter', 'kitchen'), getRestaurantActiveOrders);
 router.put("/:orderId/status", protect, authorize('owner', 'manager', 'waiter', 'kitchen'), updateOrderStatus);
+router.put("/table/:tableId/pay", protect, authorize('owner', 'manager', 'waiter'), markTableAsPaid); // New route
 router.post("/free-table", protect, authorize('owner', 'manager', 'waiter'), freeTable);
 
 // Customer Routes

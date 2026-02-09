@@ -73,6 +73,9 @@ export const placeOrder = async (req, res) => {
         table.currentOrderId = newOrder._id;
         await restaurant.save();
 
+        // Populate waiter details for socket emission
+        await newOrder.populate("waiterId", "name email");
+
         // SOCKET: Notify Kitchen/Staff
         io.to(`restro_staff_${restaurantId.toString()}`).emit("new_order", newOrder);
 
@@ -90,13 +93,17 @@ export const placeOrder = async (req, res) => {
 export const updateOrderStatus = async (req, res) => {
     try {
         const { orderId } = req.params;
-        const { status } = req.body; // Expected: PREPARING, READY, SERVED, PAID
+        const { status, paymentStatus } = req.body; // Expected: PREPARING, READY, SERVED, PAID
+
+        const updateData = { status };
+        if (paymentStatus) updateData.paymentStatus = paymentStatus;
+        if (status === "PAID" && !paymentStatus) updateData.paymentStatus = "PAID";
 
         const order = await Order.findByIdAndUpdate(
             orderId,
-            { status },
+            updateData,
             { new: true }
-        );
+        ).populate("waiterId", "name email");
 
         if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -111,6 +118,59 @@ export const updateOrderStatus = async (req, res) => {
     }
 };
 
+// Mark ALL Active Orders for a Table as (Served &) PAID
+export const markTableAsPaid = async (req, res) => {
+    try {
+        const { tableId } = req.params;
+        const { restaurantId } = req.body;
+
+        if (!tableId || !restaurantId) return res.status(400).json({ message: "Table ID and Restaurant ID required." });
+
+        // Find all orders that are active (PLACED, PREPARING, READY, SERVED) and NOT PAID/COMPLETED
+        // We assume active session orders are anything not COMPLETED
+        const orders = await Order.find({
+            tableId,
+            restaurantId,
+            status: { $nin: ["COMPLETED", "PAID"] }
+        });
+
+        if (orders.length === 0) {
+            return res.status(200).json({ message: "No unpaid active orders found." });
+        }
+
+        // Validation: All Active Orders MUST be SERVED first
+        const unservedCount = orders.filter(o => o.status !== "SERVED").length;
+        if (unservedCount > 0) {
+            return res.status(400).json({
+                message: `Cannot mark Table as Paid. ${unservedCount} orders are not yet SERVED. please serve them first.`
+            });
+        }
+
+        const updatedOrders = [];
+        for (const order of orders) {
+            order.paymentStatus = "PAID";
+            order.status = "PAID"; // Or should we keep status as SERVED if it was SERVED?
+            // The prompt says "waiter marks as paid". Usually implies complete transaction.
+            // Let's set status to PAID too.
+
+            await order.save();
+            await order.populate("waiterId", "name email");
+
+            updatedOrders.push(order);
+
+            // SOCKET: Notify
+            io.to(`table_${restaurantId}_${tableId}`).emit("order_update", order);
+            io.to(`restro_staff_${restaurantId.toString()}`).emit("order_update", order);
+        }
+
+        res.json({ message: "Table marked as Paid", updatedOrders });
+    } catch (error) {
+        console.error("Error marking table paid:", error);
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
+};
+
+// Free Table (End of Dining Session)
 // Free Table (End of Dining Session)
 export const freeTable = async (req, res) => {
     try {
@@ -130,16 +190,38 @@ export const freeTable = async (req, res) => {
             }
         }
 
-        // Retrieve order to close it if needed
+        // Check for active orders before closing
         if (table.currentOrderId) {
-            await Order.findByIdAndUpdate(table.currentOrderId, { status: "COMPLETED" });
+            const activeOrder = await Order.findById(table.currentOrderId);
+            // Allow close if PAID or already COMPLETED (legacy)
+            if (activeOrder && activeOrder.status !== "PAID" && activeOrder.status !== "COMPLETED") {
+                return res.status(400).json({
+                    message: "Cannot close session. Filter un-served or unpaid orders first.",
+                    orderStatus: activeOrder.status,
+                    activeOrderId: activeOrder._id
+                });
+            }
+
+            // Mark order as closed/archived for this session
+            if (activeOrder) {
+                activeOrder.isSessionClosed = true;
+                // DO NOT change status to COMPLETED, leave as PAID
+                await activeOrder.save();
+            }
         }
+
+        // Also close ANY other active orders for this table (bulk close)
+        await Order.updateMany(
+            { tableId, restaurantId, isSessionClosed: { $ne: true } },
+            { $set: { isSessionClosed: true } }
+        );
 
         // Reset Table
         table.isOccupied = false;
         table.currentOrderId = null;
         table.assignedWaiterId = null; // Clear assigned waiter
         table.requestService = false; // Clear service request
+        table.requestBill = false; // Clear bill request
         await restaurant.save();
 
         // SOCKET: Notify clear
@@ -158,12 +240,12 @@ export const getTableOrders = async (req, res) => {
     try {
         const { restaurantId, tableId } = req.params;
 
-        // Find orders provided they are not completed (active session)
-        // Or just fetch the 'currentOrderId' from logic
+        // Find orders provided they are not closed/archived
         const activeOrders = await Order.find({
             restaurantId,
             tableId,
-            status: { $ne: "COMPLETED" }
+            isSessionClosed: { $ne: true }, // Changed from status check
+            status: { $ne: "COMPLETED" } // Keep legacy check just in case
         }).sort({ createdAt: -1 });
 
         res.json(activeOrders);
@@ -183,9 +265,21 @@ export const getRestaurantActiveOrders = async (req, res) => {
             return res.status(400).json({ message: "Invalid Restaurant ID" });
         }
 
+        // Include COMPLETED for history/owner view (frontend will filter "Active" vs "History")
+        // We might want to limit COMPLETED orders to the last 24 hours to avoid fetching entire history
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+
         let query = {
             restaurantId,
-            status: { $in: ["PLACED", "PREPARING", "READY", "SERVED", "PAID"] }
+            $or: [
+                // Active Orders: Not closed session AND not legacy completed
+                { isSessionClosed: { $ne: true }, status: { $ne: "COMPLETED" } },
+                // Recently Closed Sessions (Last 24h)
+                { isSessionClosed: true, updatedAt: { $gte: yesterday } },
+                // Legacy Completed (Last 24h)
+                { status: "COMPLETED", updatedAt: { $gte: yesterday } }
+            ]
         };
 
         // 2. Role-Based Filtering (Defensive)
@@ -197,26 +291,24 @@ export const getRestaurantActiveOrders = async (req, res) => {
 
                 // Only for "Pure" Waiters
                 if (user._id) {
+                    // Waiters might need to see their own completed orders too
                     query.waiterId = user._id;
                 }
             }
         } catch (roleError) {
             console.warn("[getRestaurantActiveOrders] Role check warning, defaulting to full view:", roleError);
-            // Fallback: Show all orders if role check fails (better than crash)
         }
 
         // 3. Execution (With .lean() for performance and safety)
-        // Note: Population removed to prevent 500 errors on invalid refs. 
-        // Frontend handles missing waiterId gracefully.
         const orders = await Order.find(query)
-            .sort({ createdAt: 1 })
+            .sort({ createdAt: 1 }) // Oldest first? or Newest? Usually Kitchen wants Oldest. Owner might want Newest.
+            // Let's keep 1 (Oldest first) for kitchen flow. Completed ones will be at the top/bottom depending on sort.
+            .populate("waiterId", "name email") // Populate waiter details
             .lean();
 
         res.json(orders);
     } catch (error) {
         console.error("[getRestaurantActiveOrders] CRITICAL ERROR:", error);
-        // Return empty array instead of 500 to keep app usable? 
-        // No, return 500 but with clear message so frontend doesn't retry infinitely if its fatal.
         res.status(500).json({ message: "Server Error Fetching Orders", error: error.message });
     }
 };

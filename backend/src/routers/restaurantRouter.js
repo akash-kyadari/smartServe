@@ -7,7 +7,8 @@ import {
     getAllRestaurants,
     getRestaurantDetailsPublic,
     checkTableStatus,
-    toggleTableService
+    toggleTableService,
+    toggleTableBill
 } from "../controllers/restaurantController.js";
 import { addStaff, removeStaff, getStaff, updateStaffPassword } from "../controllers/staffController.js";
 import { getMenuItems, addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability } from "../controllers/menuController.js";
@@ -20,6 +21,7 @@ router.get("/", getAllRestaurants);
 router.get("/public/:id", getRestaurantDetailsPublic);
 router.get("/public/:id/table/:tableId", checkTableStatus);
 router.post("/public/:id/table/:tableId/service", toggleTableService);
+router.post("/public/:id/table/:tableId/bill", toggleTableBill);
 
 // Protected Routes
 router.post("/", protect, authorize('owner'), createRestaurant);

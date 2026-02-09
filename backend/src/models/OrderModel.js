@@ -57,6 +57,10 @@ const OrderSchema = new mongoose.Schema(
             enum: ["CASH", "ONLINE"],
             default: "CASH",
         },
+        isSessionClosed: {
+            type: Boolean,
+            default: false
+        }
     },
     { timestamps: true }
 );

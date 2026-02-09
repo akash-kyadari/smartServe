@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import useRestaurantStore from "@/store/useRestaurantStore";
 import useAuthStore from "@/store/useAuthStore";
-import { Loader2, ClipboardList, CheckCircle, Bell, Clock, ChefHat, AlertCircle, User, X, LogOut } from "lucide-react";
+import { Loader2, ClipboardList, CheckCircle, Bell, ChefHat, DollarSign, User } from "lucide-react"; // Removed unused imports
 import { motion, AnimatePresence } from "framer-motion";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { getSocket } from "@/lib/socket";
 import axios from "axios";
+import TableDetailsModal from "@/components/business/waiter/TableDetailsModal";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") + "/api";
 
@@ -21,27 +22,44 @@ function WaiterPOSPageContent() {
     const restaurantId = (rawRestroId && typeof rawRestroId === 'object') ? rawRestroId._id : rawRestroId;
     const currentRestaurant = restaurants.find(r => r._id === restaurantId);
 
-    // Initial Fetch (Restaurant + Orders)
-    useEffect(() => {
-        if (user && restaurantId) {
-            if (!currentRestaurant || !currentRestaurant.tables) {
-                fetchRestaurantById(restaurantId);
+    // Centralized Data Fetch
+    const fetchData = useCallback(async () => {
+        if (!restaurantId) return;
+
+        // 1. Fetch Restaurant Data (Tables)
+        await fetchRestaurantById(restaurantId);
+
+        // 2. Fetch Active Orders
+        try {
+            const res = await axios.get(`${API_URL}/orders/active/${restaurantId}`, { withCredentials: true });
+            let fetchedOrders = res.data;
+
+            // Filter out closed sessions
+            fetchedOrders = fetchedOrders.filter(o => !o.isSessionClosed);
+
+            // Filter for Waiters: Only show their assigned orders logic
+            const isJustWaiter = user.roles.includes('waiter') && !user.roles.includes('owner') && !user.roles.includes('manager');
+            if (isJustWaiter) {
+                fetchedOrders = fetchedOrders.filter(o => {
+                    const wId = o.waiterId?._id || o.waiterId;
+                    return wId?.toString() === user._id?.toString();
+                });
             }
 
-            // Fetch Active Orders
-            const fetchOrders = async () => {
-                try {
-                    const res = await axios.get(`${API_URL}/orders/active/${restaurantId}`, { withCredentials: true });
-                    setOrders(res.data);
-                } catch (err) {
-                    console.error("Failed to load active orders", err);
-                }
-            };
-            fetchOrders();
+            setOrders(fetchedOrders);
+        } catch (err) {
+            console.error("Failed to load active orders", err);
         }
-    }, [user, restaurantId, currentRestaurant, fetchRestaurantById]);
+    }, [restaurantId, user, fetchRestaurantById]);
 
-    // Socket Integration for Realtime Updates
+    // Initial Load
+    useEffect(() => {
+        if (user && restaurantId) {
+            fetchData();
+        }
+    }, [user, restaurantId, fetchData]);
+
+    // Socket Integration
     useEffect(() => {
         if (!restaurantId) return;
 
@@ -50,90 +68,88 @@ function WaiterPOSPageContent() {
 
         const handleUpdate = (data) => {
             console.log("Realtime Update Received:", data);
-            fetchRestaurantById(restaurantId);
+            fetchData(); // Simplest approach: Refetch all on critical updates
+        };
+
+        const handleTableFreed = ({ tableId }) => {
+            setOrders(prev => prev.filter(o => o.tableId !== tableId)); // Immediate UI update
+            fetchData();
         };
 
         const handleNewOrder = (newOrder) => {
-            // Filter for Waiters: Only accept if assigned to them (or they are not just a waiter)
+            // Filter for Waiters
             const isJustWaiter = user.roles.includes('waiter') && !user.roles.includes('owner') && !user.roles.includes('manager');
-            if (isJustWaiter && newOrder.waiterId !== user._id) return;
+            const orderWaiterId = newOrder.waiterId?._id || newOrder.waiterId;
 
-            setOrders(prev => [...prev, newOrder]);
-            fetchRestaurantById(restaurantId);
+            if (isJustWaiter && orderWaiterId?.toString() !== user._id?.toString()) return;
+
+            setOrders(prev => {
+                if (prev.find(o => o._id === newOrder._id)) return prev;
+                return [...prev, newOrder];
+            });
+            // We can skip full refetch here if we trust the socket data
+            // fetchRestaurantById(restaurantId); // Updates table status if changed?
         };
 
         const handleOrderUpdate = (updatedOrder) => {
-            // Filter for Waiters
+            if (updatedOrder.isSessionClosed) {
+                setOrders(prev => prev.filter(o => o._id !== updatedOrder._id));
+                return;
+            }
+
             const isJustWaiter = user.roles.includes('waiter') && !user.roles.includes('owner') && !user.roles.includes('manager');
-            if (isJustWaiter && updatedOrder.waiterId !== user._id) return;
+            const orderWaiterId = updatedOrder.waiterId?._id || updatedOrder.waiterId;
+
+            if (isJustWaiter && orderWaiterId?.toString() !== user._id?.toString()) return;
 
             setOrders(prev => {
                 const index = prev.findIndex(o => o._id === updatedOrder._id);
                 if (index !== -1) {
-                    // Update existing
                     const next = [...prev];
                     next[index] = updatedOrder;
                     return next;
                 }
-                // Add if not present (e.g. status change from irrelevant to relevant)
-                if (['PLACED', 'PREPARING', 'READY'].includes(updatedOrder.status)) {
+                if (['PLACED', 'PREPARING', 'READY', 'SERVED', 'PAID'].includes(updatedOrder.status)) {
                     return [...prev, updatedOrder];
                 }
                 return prev;
             });
-            fetchRestaurantById(restaurantId);
         };
 
         socket.on("new_order", handleNewOrder);
         socket.on("order_update", handleOrderUpdate);
-        socket.on("table_freed", handleUpdate);
+        socket.on("table_freed", handleTableFreed);
         socket.on("table_service_update", handleUpdate);
+        socket.on("table_bill_update", handleUpdate);
 
         return () => {
             socket.off("new_order", handleNewOrder);
             socket.off("order_update", handleOrderUpdate);
-            socket.off("table_freed", handleUpdate);
+            socket.off("table_freed", handleTableFreed);
             socket.off("table_service_update", handleUpdate);
+            socket.off("table_bill_update", handleUpdate);
         };
-    }, [restaurantId, fetchRestaurantById]);
+    }, [restaurantId, user, fetchData]);
 
-    // Actions
+    // Service Request Action (for main/dashboard view)
     const handleResolveService = async (tableId) => {
         try {
             await axios.post(`${API_URL}/restaurants/public/${restaurantId}/table/${tableId}/service`, { active: false });
-            // Optimization: Update local state immediately
-            fetchRestaurantById(restaurantId);
+            fetchData();
         } catch (err) {
             console.error(err);
         }
     };
 
+    // Quick Serve Action (for dashboard cards)
     const handleMarkServed = async (orderId) => {
         try {
-            // Optimistic Update
+            // Optimistic
             setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status: "SERVED" } : o));
             await axios.put(`${API_URL}/orders/${orderId}/status`, { status: "SERVED" }, { withCredentials: true });
-            // Close modal if order matches
-            if (selectedTable?.currentOrderId === orderId) {
-                setSelectedTable(null);
-            }
         } catch (err) {
             console.error(err);
-        }
-    }
-
-    const handleFreeTable = async (tableId) => {
-        if (!confirm("Are you sure you want to close this session? This will free the table.")) return;
-        try {
-            await axios.post(`${API_URL}/orders/free-table`, {
-                restaurantId,
-                tableId
-            }, { withCredentials: true });
-            setSelectedTable(null);
-            fetchRestaurantById(restaurantId);
-        } catch (err) {
-            console.error(err);
-            alert(err.response?.data?.message || "Failed to close session");
+            fetchData();
         }
     };
 
@@ -147,14 +163,13 @@ function WaiterPOSPageContent() {
         isOccupied: t.isOccupied,
         assignedWaiterId: t.assignedWaiterId,
         requestService: t.requestService,
+        requestBill: t.requestBill,
         currentOrderId: t.currentOrderId
     })) || [];
 
-    // Filter tasks (Service Requests)
+    // Filter tasks
     const serviceRequests = tables.filter(t => t.requestService);
-
-    // Find active order for selected table
-    const selectedOrder = selectedTable && orders.find(o => o.tableId === selectedTable.id && o.status !== 'COMPLETED');
+    const billRequests = tables.filter(t => t.requestBill);
 
     if (isLoading && !currentRestaurant) {
         return (
@@ -178,6 +193,12 @@ function WaiterPOSPageContent() {
                     </p>
                 </div>
                 <div className="flex items-center gap-4">
+                    {billRequests.length > 0 && (
+                        <div className="flex items-center gap-2 text-xs font-bold bg-blue-500/10 text-blue-600 px-3 py-1.5 rounded-full border border-blue-200 animate-pulse">
+                            <DollarSign size={12} className="fill-blue-600" />
+                            {billRequests.length} Bill Req
+                        </div>
+                    )}
                     {serviceRequests.length > 0 && (
                         <div className="flex items-center gap-2 text-xs font-bold bg-yellow-500/10 text-yellow-600 px-3 py-1.5 rounded-full border border-yellow-200 animate-pulse">
                             <Bell size={12} className="fill-yellow-600" />
@@ -196,7 +217,7 @@ function WaiterPOSPageContent() {
                 <div className="max-w-7xl mx-auto space-y-8">
 
                     {/* Priority Actions Section */}
-                    {(serviceRequests.length > 0 || orders.some(o => o.status === 'READY')) && (
+                    {(serviceRequests.length > 0 || billRequests.length > 0 || orders.some(o => o.status === 'READY')) && (
                         <div className="bg-background/50 border border-border rounded-2xl p-6 shadow-sm">
                             <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
                                 <span className="relative flex h-3 w-3">
@@ -206,6 +227,29 @@ function WaiterPOSPageContent() {
                                 Priority Tasks
                             </h2>
                             <div className="flex flex-wrap gap-4">
+                                {/* Bill Requests */}
+                                {billRequests.map(table => (
+                                    <motion.div
+                                        key={`bill-${table.id}`}
+                                        initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+                                        className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 p-4 rounded-xl shadow-sm flex items-center gap-4 min-w-[250px]"
+                                    >
+                                        <div className="h-10 w-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                                            <DollarSign size={20} className="fill-current animate-bounce" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className="font-bold text-gray-900 dark:text-gray-100">Table {table.number.replace('T', '')}</h4>
+                                            <p className="text-xs text-blue-700 dark:text-blue-400 font-medium">Requested Bill</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setSelectedTable(table)}
+                                            className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg transition-colors shadow-sm text-xs font-bold"
+                                        >
+                                            View
+                                        </button>
+                                    </motion.div>
+                                ))}
+
                                 {/* Service Requests */}
                                 {serviceRequests.map(table => (
                                     <motion.div
@@ -232,7 +276,6 @@ function WaiterPOSPageContent() {
 
                                 {/* Ready Orders */}
                                 {orders.filter(o => o.status === 'READY').map(order => {
-                                    // Find table info for this order
                                     const table = tables.find(t => t.id === order.tableId);
                                     return (
                                         <motion.div
@@ -249,7 +292,7 @@ function WaiterPOSPageContent() {
                                                     <span className="text-[10px] bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-1.5 py-0.5 rounded-full font-bold">READY</span>
                                                 </div>
                                                 <p className="text-xs text-green-700 dark:text-green-400 font-medium truncate max-w-[120px]">
-                                                    {order.items.map(i => i.name).join(', ')}
+                                                    {order.items?.map(i => i.name).join(', ')}
                                                 </p>
                                             </div>
                                             <button
@@ -303,7 +346,7 @@ function WaiterPOSPageContent() {
                             {tables.map((table) => {
                                 const isMyTable = table.assignedWaiterId === user?._id;
                                 const hasRequest = table.requestService;
-                                const tableOrder = orders.find(o => o.tableId === table.id && o.status !== 'COMPLETED');
+                                const tableOrder = orders.find(o => o.tableId === table.id && !o.isSessionClosed && o.status !== 'COMPLETED');
                                 const isReady = tableOrder?.status === 'READY';
 
                                 return (
@@ -374,96 +417,21 @@ function WaiterPOSPageContent() {
                         </div>
                     </div>
                 </div>
-            </main>
+            </main >
 
             {/* Order Management Modal */}
-            <AnimatePresence>
+            < AnimatePresence >
                 {selectedTable && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <motion.div
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                            onClick={() => setSelectedTable(null)}
-                        />
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                            className="relative bg-card w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-border"
-                        >
-                            <div className="p-4 bg-secondary/50 border-b border-border flex justify-between items-center">
-                                <h3 className="font-bold flex items-center gap-2">
-                                    Manage Table {selectedTable.number}
-                                    {selectedTable.requestService && <span className="bg-yellow-500 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">Needs Service</span>}
-                                </h3>
-                                <button onClick={() => setSelectedTable(null)} className="p-1 hover:bg-white/10 rounded-full"><X size={20} /></button>
-                            </div>
-
-                            <div className="p-6">
-                                {selectedOrder ? (
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="text-muted-foreground">Order #{selectedOrder._id.slice(-4)}</span>
-                                            <span className={`px-2 py-0.5 rounded textxs font-bold uppercase ${selectedOrder.status === 'READY' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                                                }`}>
-                                                {selectedOrder.status}
-                                            </span>
-                                        </div>
-
-                                        <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                                            {selectedOrder.items.map((item, i) => (
-                                                <div key={i} className="flex justify-between text-sm py-1 border-b border-border/50 last:border-0">
-                                                    <span>{item.quantity}x {item.name}</span>
-                                                    <span className="font-medium">₹{item.price * item.quantity}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <div className="pt-4 flex gap-3">
-                                            {selectedOrder.status === 'READY' && (
-                                                <button
-                                                    onClick={() => handleMarkServed(selectedOrder._id)}
-                                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
-                                                >
-                                                    <CheckCircle size={18} /> Mark Served
-                                                </button>
-                                            )}
-                                        </div>
-                                        {selectedOrder.status === 'SERVED' && (
-                                            <div className="text-center text-sm text-green-600 font-medium py-2 bg-green-50 rounded-lg">
-                                                Order Served
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-8 text-muted-foreground">
-                                        <ClipboardList size={32} className="mx-auto mb-2 opacity-50" />
-                                        <p>No active orders for this table.</p>
-                                    </div>
-                                )}
-
-                                {selectedTable.requestService && (
-                                    <button
-                                        onClick={() => { handleResolveService(selectedTable.id); setSelectedTable(null); }}
-                                        className="w-full mt-4 border border-yellow-500 text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 py-2.5 rounded-xl font-bold transition-colors"
-                                    >
-                                        Mark Request Addressed
-                                    </button>
-                                )}
-
-                                {/* Close Session Button */}
-                                {selectedTable.isOccupied && (
-                                    <button
-                                        onClick={() => handleFreeTable(selectedTable.id)}
-                                        className="w-full mt-4 bg-red-500/10 text-red-600 hover:bg-red-500/20 py-2.5 rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        <LogOut size={18} /> Close Session & Free Table
-                                    </button>
-                                )}
-                            </div>
-                        </motion.div>
-                    </div>
+                    <TableDetailsModal
+                        table={selectedTable}
+                        orders={orders}
+                        restaurantId={restaurantId}
+                        onClose={() => setSelectedTable(null)}
+                        onUpdate={fetchData}
+                    />
                 )}
-            </AnimatePresence>
-        </div>
+            </AnimatePresence >
+        </div >
     );
 }
 

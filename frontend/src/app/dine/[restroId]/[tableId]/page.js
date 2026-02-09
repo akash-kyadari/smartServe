@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useParams, useRouter } from "next/navigation";
-import { Loader2, AlertCircle, ShoppingBag, UtensilsCrossed, ChevronLeft, Clock, History, MapPin, Phone } from "lucide-react";
+import { Loader2, AlertCircle, ShoppingBag, UtensilsCrossed, ChevronLeft, Clock, History, MapPin, Phone, CheckCircle } from "lucide-react";
 import { getSocket } from "@/lib/socket";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -28,18 +28,23 @@ export default function TablePage({ params }) {
     const [table, setTable] = useState(null);
     const [activeOrders, setActiveOrders] = useState([]);
     const [cart, setCart] = useState({});
-    const [customerInfo, setCustomerInfo] = useState({ name: "", phone: "" });
 
-    // Load Guest Info
+    // Session State
+    const [customerInfo, setCustomerInfo] = useState({ name: "", phone: "" });
+    const [isSessionStarted, setIsSessionStarted] = useState(false);
+    const [sessionEnded, setSessionEnded] = useState(false);
+
+    // Initial Load
     useEffect(() => {
         const storedName = localStorage.getItem("customerName");
         const storedPhone = localStorage.getItem("customerPhone");
         if (storedName && storedPhone) {
             setCustomerInfo({ name: storedName, phone: storedPhone });
+            setIsSessionStarted(true);
         }
     }, []);
 
-    // Fetch Initial Data
+    // Fetch Data
     useEffect(() => {
         if (!restroId || !tableId) return;
 
@@ -87,12 +92,9 @@ export default function TablePage({ params }) {
             if (updatedOrder.status === "COMPLETED") {
                 setActiveOrders(prev => {
                     const next = prev.filter(o => o._id !== updatedOrder._id);
-                    if (next.length === 0) {
-                        setTable(t => ({ ...t, isOccupied: false }));
-                        setViewMode("MENU");
-                        setCart({});
-                        alert("Session Ended. Thank you!");
-                    }
+                    // If all orders completed/removed, we don't necessarily end the session immediately 
+                    // unless table_freed is called. But if it was the last order, maybe?
+                    // We'll rely on table_freed for session end.
                     return next;
                 });
             } else {
@@ -109,25 +111,49 @@ export default function TablePage({ params }) {
         });
 
         socket.on("table_freed", () => {
+            // Session Ended by Waiter
+            setSessionEnded(true);
+            setIsSessionStarted(false);
+            localStorage.removeItem("customerName");
+            localStorage.removeItem("customerPhone");
+            localStorage.removeItem("cart");
             setActiveOrders([]);
             setTable(prev => ({ ...prev, isOccupied: false }));
             setCart({});
-            setViewMode("MENU");
         });
 
         socket.on("table_service_update", (data) => {
             setTable(prev => ({ ...prev, requestService: data.requestService }));
         });
 
+        socket.on("table_bill_update", (data) => {
+            setTable(prev => ({ ...prev, requestBill: data.requestBill }));
+        });
+
         return () => {
             socket.off("order_update");
             socket.off("table_freed");
             socket.off("table_service_update");
+            socket.off("table_bill_update");
         };
 
     }, [restroId, tableId]);
 
-    // Cart Logic
+    // Actions
+    const handleStartSession = (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const name = fd.get("name");
+        const phone = fd.get("phone");
+        if (!name || !phone) return;
+
+        localStorage.setItem("customerName", name);
+        localStorage.setItem("customerPhone", phone);
+        setCustomerInfo({ name, phone });
+        setIsSessionStarted(true);
+        setSessionEnded(false);
+    };
+
     const addToCart = (item) => {
         setCart(prev => ({
             ...prev,
@@ -156,11 +182,11 @@ export default function TablePage({ params }) {
     };
 
     const handlePlaceOrder = async (orderPayload) => {
-        const { customerDetails } = orderPayload;
-
-        localStorage.setItem("customerName", customerDetails.name);
-        localStorage.setItem("customerPhone", customerDetails.phone);
-        setCustomerInfo(customerDetails);
+        // Enforce session details
+        const details = {
+            name: customerInfo.name || orderPayload.customerDetails.name,
+            phone: customerInfo.phone || orderPayload.customerDetails.phone
+        };
 
         const items = Object.values(cart).map(item => ({
             menuItemId: item._id,
@@ -179,14 +205,16 @@ export default function TablePage({ params }) {
                 tableNo: table?.tableNumber,
                 items,
                 totalAmount,
-                customerDetails: customerDetails
+                customerDetails: details
             });
             setCart({});
+            setViewMode("TRACKER");
         } catch (err) {
             alert("Failed to place order: " + (err.response?.data?.message || err.message));
         }
     };
 
+    // Render States
     if (loading) {
         return (
             <div className="flex flex-col h-screen items-center justify-center bg-background space-y-4">
@@ -207,10 +235,77 @@ export default function TablePage({ params }) {
         );
     }
 
+    if (sessionEnded) {
+        return (
+            <div className="flex flex-col h-screen items-center justify-center p-6 text-center animate-in fade-in duration-500 bg-background text-foreground">
+                <div className="bg-emerald-100 dark:bg-emerald-900/30 p-6 rounded-full text-emerald-600 dark:text-emerald-400 mb-6 shadow-lg shadow-emerald-500/10">
+                    <UtensilsCrossed size={48} />
+                </div>
+                <h1 className="text-3xl font-bold mb-2">Thank You!</h1>
+                <p className="text-muted-foreground mb-8">We hope you enjoyed your dining experience at {restaurant?.name}.</p>
+                <button
+                    onClick={() => window.location.reload()}
+                    className="bg-primary text-primary-foreground px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform shadow-lg hover:shadow-primary/25"
+                >
+                    Start New Session
+                </button>
+            </div>
+        );
+    }
+
+    if (!isSessionStarted) {
+        return (
+            <div className="flex flex-col h-screen bg-background relative overflow-hidden font-sans">
+                {/* Background decoration */}
+                <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-primary/10 to-transparent -z-10" />
+
+                <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-md mx-auto w-full animate-in slide-in-from-bottom-10 fade-in duration-500">
+                    <div className="text-center mb-10">
+                        <div className="inline-block p-5 rounded-2xl bg-card shadow-xl mb-6 transform rotate-3 border border-border">
+                            <UtensilsCrossed size={40} className="text-primary" />
+                        </div>
+                        <h1 className="text-4xl font-black mb-3 tracking-tight">{restaurant?.name}</h1>
+                        <p className="text-muted-foreground text-lg">Welcome! Please enter your details to start ordering.</p>
+                    </div>
+
+                    <form onSubmit={handleStartSession} className="w-full space-y-5 bg-card p-6 rounded-2xl shadow-sm border border-border/50">
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold ml-1 text-foreground/80">Your Name</label>
+                            <input name="name" required className="w-full p-4 rounded-xl border border-input bg-secondary/50 focus:bg-background transition-all focus:ring-2 ring-primary/20 outline-none" placeholder="John Doe" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold ml-1 text-foreground/80">Phone Number</label>
+                            <input name="phone" type="tel" required className="w-full p-4 rounded-xl border border-input bg-secondary/50 focus:bg-background transition-all focus:ring-2 ring-primary/20 outline-none" placeholder="9876543210" />
+                        </div>
+                        <button type="submit" className="w-full bg-primary text-primary-foreground py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:translate-y-[-2px] active:translate-y-[0px] transition-all mt-4">
+                            Start Ordering
+                        </button>
+                    </form>
+                    <p className="text-center text-xs text-muted-foreground mt-8">
+                        By continuing, you agree to our Terms of Service.
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
+    // Main App
+    const allPaid = activeOrders.length > 0 && activeOrders.every(o => o.status === 'PAID' || o.paymentStatus === 'PAID');
+
     return (
         <div className="min-h-screen bg-background flex flex-col font-sans">
             {/* App Navbar */}
-            <CustomerNavbar />
+            <CustomerNavbar restaurant={restaurant} table={table} customerName={customerInfo.name} />
+
+            {/* Banner for All Paid */}
+            {allPaid && (
+                <div className="bg-emerald-600 text-white px-4 py-3 text-center text-sm font-bold shadow-md sticky top-[60px] z-30 animate-in slide-in-from-top-full">
+                    <div className="flex items-center justify-center gap-2">
+                        <CheckCircle className="h-5 w-5" />
+                        <span>Payment Received. Thank you!</span>
+                    </div>
+                </div>
+            )}
 
             {/* Hero Section */}
             <div className="relative h-48 w-full bg-slate-900 shrink-0 overflow-hidden">
@@ -256,7 +351,7 @@ export default function TablePage({ params }) {
             </div>
 
             {/* Main Content Area */}
-            <div className="flex-1 relative">
+            <div className="flex-1 relative pb-24">
                 <AnimatePresence mode="wait">
                     {viewMode === "MENU" ? (
                         <motion.div
@@ -279,7 +374,7 @@ export default function TablePage({ params }) {
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: 20 }}
-                            className="container mx-auto p-4 pb-24"
+                            className="container mx-auto p-4"
                         >
                             {activeOrders.length === 0 ? (
                                 <div className="text-center py-20 opacity-60">
@@ -338,13 +433,34 @@ export default function TablePage({ params }) {
                                                 <span>₹{Math.round(activeOrders.reduce((acc, o) => acc + (o.totalAmount || 0), 0) * 1.05)}</span>
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => alert("Bill requested! A waiter will be with you shortly.")}
-                                            className="w-full mt-6 bg-primary text-primary-foreground py-3.5 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                                        >
-                                            Request Bill
-                                        </button>
+                                        {!allPaid && (
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        await axios.post(`${API_URL}/restaurants/public/${restroId}/table/${tableId}/bill`, { active: true });
+                                                        alert("Bill requested! A waiter will be with you shortly.");
+                                                        setTable(prev => ({ ...prev, requestBill: true }));
+                                                    } catch (err) {
+                                                        console.error(err);
+                                                        alert("Failed to request bill");
+                                                    }
+                                                }}
+                                                disabled={table?.requestBill}
+                                                className={`w-full mt-6 py-3.5 rounded-xl font-bold shadow-lg transition-all 
+                                                        ${table?.requestBill
+                                                        ? 'bg-secondary text-muted-foreground cursor-not-allowed'
+                                                        : 'bg-primary text-primary-foreground hover:scale-[1.02] active:scale-[0.98] shadow-primary/20'}`}
+                                            >
+                                                {table?.requestBill ? "Bill Requested" : "Request Bill"}
+                                            </button>
+                                        )}
                                     </div>
+
+                                    {allPaid && (
+                                        <div className="mt-4 p-4 bg-emerald-100 text-emerald-800 rounded-xl text-center font-bold">
+                                            Session Paid. Waiting for waiter to close session.
+                                        </div>
+                                    )}
 
                                     <div className="bg-secondary/30 rounded-xl p-6 text-center mt-8 border border-dashed border-border">
                                         <p className="font-medium text-sm text-foreground mb-2">Need anything else?</p>
@@ -363,14 +479,16 @@ export default function TablePage({ params }) {
             </div>
 
             {/* Cart Component */}
-            <Cart
-                items={Object.values(cart)}
-                updateQuantity={updateQuantity}
-                handlePlaceOrder={handlePlaceOrder}
-                onClear={() => setCart({})}
-                defaultName={customerInfo.name}
-                defaultPhone={customerInfo.phone}
-            />
+            {viewMode === "MENU" && (
+                <Cart
+                    items={Object.values(cart)}
+                    updateQuantity={updateQuantity}
+                    handlePlaceOrder={handlePlaceOrder}
+                    onClear={() => setCart({})}
+                    defaultName={customerInfo.name}
+                    defaultPhone={customerInfo.phone}
+                />
+            )}
 
             {/* Call Waiter FAB */}
             <motion.button
