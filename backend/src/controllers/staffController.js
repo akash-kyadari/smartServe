@@ -1,6 +1,7 @@
 import User from "../models/UserModel.js";
 import Restaurant from "../models/RestaurantModel.js";
 import bcrypt from "bcryptjs";
+import { io } from "../socket/socket.js";
 
 // Add a new staff member
 export const addStaff = async (req, res) => {
@@ -28,7 +29,7 @@ export const addStaff = async (req, res) => {
         if (existingUser) {
             return res.status(400).json({
                 success: false,
-                message: "A user with this email already exists. Currently, staff accounts must be unique."
+                message: "A user with this email already exists."
             });
         }
 
@@ -63,7 +64,7 @@ export const addStaff = async (req, res) => {
                 start: shiftStart || "09:00",
                 end: shiftEnd || "17:00"
             },
-            isActive: true,
+            isActive: true, // Default to true for now
             joinedAt: new Date()
         });
 
@@ -81,7 +82,7 @@ export const addStaff = async (req, res) => {
                 },
                 role: role,
                 shift: restaurant.staff[restaurant.staff.length - 1].shift,
-                isActive: true,
+                isActive: true, // Default
                 joinedAt: restaurant.staff[restaurant.staff.length - 1].joinedAt
             }
         });
@@ -108,20 +109,12 @@ export const removeStaff = async (req, res) => {
         }
 
         // Remove from Restaurant staff array
-        // We use $pull to remove the object where user matches staffId
         await Restaurant.findByIdAndUpdate(id, {
             $pull: { staff: { user: staffId } }
         });
 
-        // Delete the User document as per requirement
-        // "remove n db including users coll"
-        const deletedUser = await User.findByIdAndDelete(staffId);
-
-        if (!deletedUser) {
-            // It's possible the user was already deleted or not found, but we still cleaned up the restaurant array.
-            // We can return success or a warning.
-            // Let's assume success if the goal is "ensure they are gone".
-        }
+        // Delete the User document
+        await User.findByIdAndDelete(staffId);
 
         res.status(200).json({ success: true, message: "Staff member removed successfully" });
 
@@ -137,19 +130,17 @@ export const getStaff = async (req, res) => {
         const { id } = req.params;
         const restaurant = await Restaurant.findById(id).populate({
             path: 'staff.user',
-            select: 'name email phone avatar' // Select fields to return
+            select: 'name email phone avatar'
         });
 
         if (!restaurant) {
             return res.status(404).json({ success: false, message: "Restaurant not found" });
         }
 
-        // Format the response
         const staffList = restaurant.staff.map(member => {
-            // Handle case where user might be null (if deleted but not removed from array, though verifyRemove handles this)
             if (!member.user) return null;
             return {
-                _id: member.user._id, // User ID references the staff member
+                _id: member.user._id,
                 name: member.user.name,
                 email: member.user.email,
                 role: member.role,
@@ -157,7 +148,7 @@ export const getStaff = async (req, res) => {
                 isActive: member.isActive,
                 joinedAt: member.joinedAt
             };
-        }).filter(Boolean); // Remove nulls
+        }).filter(Boolean);
 
         res.status(200).json({ success: true, staff: staffList });
 
@@ -170,7 +161,7 @@ export const getStaff = async (req, res) => {
 // Update a staff member's password
 export const updateStaffPassword = async (req, res) => {
     try {
-        const { id, staffId } = req.params; // Restaurant ID, Staff (User) ID
+        const { id, staffId } = req.params;
         const { newPassword } = req.body;
 
         if (!newPassword || newPassword.length < 6) {
@@ -182,15 +173,8 @@ export const updateStaffPassword = async (req, res) => {
             return res.status(404).json({ success: false, message: "Restaurant not found" });
         }
 
-        // Verify ownership
         if (restaurant.owner.toString() !== req.user._id.toString()) {
             return res.status(403).json({ success: false, message: "Not authorized to update staff for this restaurant" });
-        }
-
-        // Verify staff belongs to restaurant
-        const isStaff = restaurant.staff.some(s => s.user?.toString() === staffId);
-        if (!isStaff) {
-            return res.status(404).json({ success: false, message: "Staff member not found in this restaurant" });
         }
 
         const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -204,5 +188,72 @@ export const updateStaffPassword = async (req, res) => {
     } catch (error) {
         console.error("Error updating staff password:", error);
         res.status(500).json({ success: false, message: "Error updating staff password", error: error.message });
+    }
+};
+
+// Toggle Staff Activity Status (Online/Offline)
+export const toggleStaffStatus = async (req, res) => {
+    try {
+        const { id } = req.params; // Restaurant ID
+        const { staffId } = req.body; // Staff User ID
+        const { active } = req.body; // Boolean
+
+        // Logic to allow self-toggle OR owner-toggle
+        // If req.user is the staff member, they can toggle themselves
+        // If req.user is owner, they can toggle anyone
+
+        const restaurant = await Restaurant.findById(id);
+        if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+
+        const isOwner = restaurant.owner.toString() === req.user._id.toString();
+        const isSelf = req.user._id.toString() === staffId;
+
+        if (!isOwner && !isSelf) {
+            return res.status(403).json({ message: "Not authorized to change status" });
+        }
+
+        // Find staff member in array
+        const staffMember = restaurant.staff.find(s => s.user.toString() === staffId);
+        if (!staffMember) {
+            return res.status(404).json({ message: "Staff member not found in this restaurant" });
+        }
+
+        // --- NEW CHECK: Prevent going offline if tables are assigned ---
+        if (!active) { // Attempting to go offline
+            const activeTables = restaurant.tables.filter(t =>
+                t.assignedWaiterId &&
+                t.assignedWaiterId.toString() === staffId &&
+                t.isOccupied
+            );
+
+            if (activeTables.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Cannot go offline. You have ${activeTables.length} active table(s) assigned.`
+                });
+            }
+        }
+        // -------------------------------------------------------------
+
+        staffMember.isActive = active;
+        await restaurant.save();
+
+        // Also update User's workingAt array for consistency
+        await User.findOneAndUpdate(
+            { _id: staffId, "workingAt.restaurantId": id },
+            { $set: { "workingAt.$.isActive": active } }
+        );
+
+        // Notify Real-time
+        io.to(`restro_staff_${id}`).emit("staff_update", {
+            staffId,
+            isActive: active
+        });
+
+        res.json({ success: true, message: `Status updated to ${active ? "Online" : "Offline"}`, isActive: active });
+
+    } catch (error) {
+        console.error("Error toggling staff status:", error);
+        res.status(500).json({ message: "Server Error", error: error.message });
     }
 };

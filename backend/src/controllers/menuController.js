@@ -81,6 +81,7 @@ export const updateMenuItem = async (req, res) => {
     try {
         const { restaurantId, itemId } = req.params;
         const updates = req.body;
+        console.log(`Updating menu item: ${itemId} in ${restaurantId}`, updates);
 
         const restaurant = await Restaurant.findById(restaurantId);
         if (!restaurant) {
@@ -92,34 +93,38 @@ export const updateMenuItem = async (req, res) => {
             return res.status(403).json({ success: false, message: "Not authorized to update menu items in this restaurant" });
         }
 
-        // Find the menu item
-        const menuItem = restaurant.menu.id(itemId);
-        if (!menuItem) {
+        // Construct update fields with dot notation for Atomic Set
+        const updateFields = {};
+        if (updates.name !== undefined) updateFields["menu.$.name"] = updates.name.trim();
+        if (updates.description !== undefined) updateFields["menu.$.description"] = updates.description.trim();
+        if (updates.price !== undefined) {
+            if (Number(updates.price) < 0) return res.status(400).json({ success: false, message: "Price must be positive" });
+            updateFields["menu.$.price"] = Number(updates.price);
+        }
+        if (updates.category !== undefined) updateFields["menu.$.category"] = updates.category;
+        if (updates.isVeg !== undefined) updateFields["menu.$.isVeg"] = Boolean(updates.isVeg);
+        if (updates.isAvailable !== undefined) updateFields["menu.$.isAvailable"] = Boolean(updates.isAvailable);
+        if (updates.preparationTime !== undefined) updateFields["menu.$.preparationTime"] = Number(updates.preparationTime);
+        if (updates.image !== undefined) updateFields["menu.$.image"] = updates.image;
+
+        // Atomic Update
+        const updatedRestaurant = await Restaurant.findOneAndUpdate(
+            { "_id": restaurantId, "menu._id": itemId },
+            { "$set": updateFields },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedRestaurant) {
             return res.status(404).json({ success: false, message: "Menu item not found" });
         }
 
-        // Update fields
-        if (updates.name !== undefined) menuItem.name = updates.name.trim();
-        if (updates.description !== undefined) menuItem.description = updates.description.trim();
-        if (updates.price !== undefined) {
-            const price = Number(updates.price);
-            if (price < 0) {
-                return res.status(400).json({ success: false, message: "Price must be a positive number" });
-            }
-            menuItem.price = price;
-        }
-        if (updates.category !== undefined) menuItem.category = updates.category;
-        if (updates.isVeg !== undefined) menuItem.isVeg = Boolean(updates.isVeg);
-        if (updates.isAvailable !== undefined) menuItem.isAvailable = Boolean(updates.isAvailable);
-        if (updates.preparationTime !== undefined) menuItem.preparationTime = Number(updates.preparationTime);
-        if (updates.image !== undefined) menuItem.image = updates.image;
-
-        await restaurant.save();
+        // Get the updated item to return
+        const updatedItem = updatedRestaurant.menu.id(itemId);
 
         res.status(200).json({
             success: true,
             message: "Menu item updated successfully",
-            menuItem: menuItem
+            menuItem: updatedItem
         });
     } catch (error) {
         console.log("Error in updateMenuItem:", error.message);
@@ -131,6 +136,7 @@ export const updateMenuItem = async (req, res) => {
 export const deleteMenuItem = async (req, res) => {
     try {
         const { restaurantId, itemId } = req.params;
+        console.log(`Deleting menu item: Restro=${restaurantId}, Item=${itemId}, User=${req.user._id}`);
 
         const restaurant = await Restaurant.findById(restaurantId);
         if (!restaurant) {
@@ -142,15 +148,18 @@ export const deleteMenuItem = async (req, res) => {
             return res.status(403).json({ success: false, message: "Not authorized to delete menu items from this restaurant" });
         }
 
-        // Find and remove the menu item
-        const menuItem = restaurant.menu.id(itemId);
-        if (!menuItem) {
-            return res.status(404).json({ success: false, message: "Menu item not found" });
+        // Use atomic pull to remove item
+        const result = await Restaurant.findByIdAndUpdate(
+            restaurantId,
+            { $pull: { menu: { _id: itemId } } },
+            { new: true } // Return updated doc
+        );
+
+        if (!result) {
+            return res.status(404).json({ success: false, message: "Failed to delete item" });
         }
 
-        // Remove using pull (Mongoose subdocument method)
-        restaurant.menu.pull(itemId);
-        await restaurant.save();
+        console.log("Item deleted successfully");
 
         res.status(200).json({
             success: true,
@@ -182,19 +191,26 @@ export const toggleMenuItemAvailability = async (req, res) => {
             return res.status(403).json({ success: false, message: "Not authorized to modify menu availability" });
         }
 
-        // Find the menu item
+        // Find item to get current status
         const menuItem = restaurant.menu.id(itemId);
         if (!menuItem) {
             return res.status(404).json({ success: false, message: "Menu item not found" });
         }
 
-        // Toggle availability
-        menuItem.isAvailable = !menuItem.isAvailable;
-        await restaurant.save();
+        const newState = !menuItem.isAvailable;
+
+        // Atomic update
+        await Restaurant.updateOne(
+            { "_id": restaurantId, "menu._id": itemId },
+            { "$set": { "menu.$.isAvailable": newState } }
+        );
+
+        // Update local object for response
+        menuItem.isAvailable = newState;
 
         res.status(200).json({
             success: true,
-            message: `Menu item ${menuItem.isAvailable ? 'enabled' : 'disabled'} successfully`,
+            message: `Menu item ${newState ? 'enabled' : 'disabled'} successfully`,
             menuItem: menuItem
         });
     } catch (error) {

@@ -8,9 +8,10 @@ import {
     getRestaurantDetailsPublic,
     checkTableStatus,
     toggleTableService,
-    toggleTableBill
+    toggleTableBill,
+    getRestaurantAnalytics // Added import
 } from "../controllers/restaurantController.js";
-import { addStaff, removeStaff, getStaff, updateStaffPassword } from "../controllers/staffController.js";
+import { addStaff, removeStaff, getStaff, updateStaffPassword, toggleStaffStatus } from "../controllers/staffController.js";
 import { getMenuItems, addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability } from "../controllers/menuController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 
@@ -26,14 +27,17 @@ router.post("/public/:id/table/:tableId/bill", toggleTableBill);
 // Protected Routes
 router.post("/", protect, authorize('owner'), createRestaurant);
 router.get("/my-restaurants", protect, authorize('owner'), getMyRestaurants);
+router.get("/analytics/:id", protect, authorize('owner', 'manager'), getRestaurantAnalytics); // Analytics
 router.get("/:id", protect, authorize('owner', 'manager', 'waiter', 'kitchen'), getRestaurantById);
 router.put("/:id", protect, authorize('owner', 'manager'), updateRestaurant);
 
+
 // Staff Routes
-router.get("/:id/staff", protect, authorize('owner', 'manager'), getStaff);
+router.get("/:id/staff", protect, authorize('owner', 'manager', 'kitchen', 'waiter'), getStaff);
 router.post("/:id/staff", protect, authorize('owner'), addStaff);
 router.delete("/:id/staff/:staffId", protect, authorize('owner'), removeStaff);
 router.put("/:id/staff/:staffId/password", protect, authorize('owner'), updateStaffPassword);
+router.put("/:id/staff/status", protect, authorize('owner', 'manager', 'waiter', 'kitchen'), toggleStaffStatus);
 
 // Menu Routes
 router.get("/:restaurantId/menu", protect, authorize('owner', 'manager', 'waiter', 'kitchen'), getMenuItems);

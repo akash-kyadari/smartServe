@@ -1,5 +1,6 @@
 import Restaurant from "../models/RestaurantModel.js";
 import User from "../models/UserModel.js";
+import Order from "../models/OrderModel.js"; // Import Order model
 import { io } from "../socket/socket.js";
 
 // Create a new restaurant
@@ -167,6 +168,21 @@ export const updateRestaurant = async (req, res) => {
             { new: true, runValidators: true }
         );
 
+        // REALTIME UPDATE: Notify Staff & Customers
+        if (updates.isActive !== undefined || updates.isOpen !== undefined) {
+            const statusPayload = {
+                isActive: updatedRestaurant.isActive,
+                isOpen: updatedRestaurant.isOpen,
+                restaurantId: id
+            };
+
+            // Notify Staff
+            io.to(`restro_staff_${id}`).emit("restaurant_status_update", statusPayload);
+
+            // Notify Customers (We will make them join this room)
+            io.to(`restro_public_${id}`).emit("restaurant_status_update", statusPayload);
+        }
+
         res.status(200).json({
             success: true,
             message: "Restaurant updated successfully",
@@ -256,6 +272,39 @@ export const toggleTableService = async (req, res) => {
         if (!table) return res.status(404).json({ message: "Table not found" });
 
         table.requestService = active;
+
+        // Auto-assign waiter if needed (and services requested)
+        if (active && !table.assignedWaiterId) {
+            const activeStaff = restaurant.staff.filter(s => s.isActive);
+            const activeWaiters = activeStaff.filter(s => s.role === 'waiter');
+
+            // Strict Check: No active waiters = No Service
+            if (activeWaiters.length === 0) {
+                return res.status(503).json({ message: "We are currently not serving. No waiters are available." });
+            }
+
+            // Find waiter with least active tables
+            if (activeWaiters.length > 0) {
+                const waiterLoad = activeWaiters.map(w => {
+                    const activeCount = restaurant.tables.filter(t =>
+                        t.assignedWaiterId && t.assignedWaiterId.toString() === w.user.toString()
+                    ).length;
+                    return { waiterId: w.user, load: activeCount };
+                });
+                waiterLoad.sort((a, b) => a.load - b.load);
+                if (waiterLoad.length > 0) {
+                    table.assignedWaiterId = waiterLoad[0].waiterId;
+                }
+            }
+        }
+
+        // If even after trying, no one is assigned, we might want to alert frontend
+        if (active && !table.assignedWaiterId) {
+            // Optional: Return 503 if we want to BLOCK the call. 
+            // Better UX: Allow call, but tell user "Staff is unavailable, request sent to manager". 
+            // Owner/Manager usually always sees these requests anyway.
+        }
+
         await restaurant.save();
 
         // Notify Staff
@@ -293,11 +342,107 @@ export const toggleTableBill = async (req, res) => {
         io.to(`restro_staff_${id}`).emit("table_bill_update", {
             tableId,
             requestBill: active,
-            tableNumber: table.tableNumber
+            tableNumber: table.tableNumber,
+            assignedWaiterId: table.assignedWaiterId // Send assigned waiter ID
         });
 
         res.status(200).json({ success: true, message: active ? "Bill requested" : "Bill request resolved" });
     } catch (error) {
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
+};
+// Get Analytics (Revenue & Popular Items)
+export const getRestaurantAnalytics = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Verify ownership/manager
+        const restaurant = await Restaurant.findById(id);
+        if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+
+        // Authorization check (Owner/Manager) - relying on route middleware usually, but good to be safe if passed ID isn't checked
+        // The middleware `protect` and `authorize` handles role, but we need to ensure this restaurant belongs to user if owner
+        if (req.user.roles.includes('owner') && restaurant.owner.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: "Not authorized" });
+        }
+
+
+        // 1. Revenue Last 7 Days
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        sevenDaysAgo.setHours(0, 0, 0, 0);
+
+        const revenueData = await Order.aggregate([
+            {
+                $match: {
+                    restaurantId: restaurant._id,
+                    status: { $in: ["PAID", "COMPLETED"] },
+                    updatedAt: { $gte: sevenDaysAgo }
+                }
+            },
+            {
+                $group: {
+                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$updatedAt" } },
+                    totalRevenue: { $sum: "$totalAmount" }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ]);
+
+        // Fill missing days with 0
+        const filledRevenue = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toISOString().split('T')[0];
+            const found = revenueData.find(r => r._id === dateStr);
+            filledRevenue.push({
+                date: dateStr,
+                revenue: found ? found.totalRevenue : 0,
+                day: d.toLocaleDateString('en-US', { weekday: 'short' })
+            });
+        }
+
+        // 2. Popular Dishes (All Time or Last 30 Days?) - Let's do Last 30 Days
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const popularItems = await Order.aggregate([
+            {
+                $match: {
+                    restaurantId: restaurant._id,
+                    status: { $nin: ["CANCELLED"] }, // Count all orders except cancelled
+                    createdAt: { $gte: thirtyDaysAgo }
+                }
+            },
+            { $unwind: "$items" },
+            {
+                $group: {
+                    _id: "$items.name", // Group by name
+                    count: { $sum: "$items.quantity" }
+                }
+            },
+            { $sort: { count: -1 } },
+            { $limit: 5 }
+        ]);
+
+        // Transform for frontend
+        const totalItemsSold = popularItems.reduce((acc, curr) => acc + curr.count, 0);
+        const popularDishes = popularItems.map((item, index) => ({
+            name: item._id,
+            sales: totalItemsSold > 0 ? Math.round((item.count / totalItemsSold) * 100) + "%" : "0%",
+            count: item.count,
+            color: index === 0 ? "bg-sunset" : index === 1 ? "bg-orange-400" : "bg-yellow-400" // Simple color assignment
+        }));
+
+        res.status(200).json({
+            success: true,
+            revenue: filledRevenue,
+            popularDishes
+        });
+
+    } catch (error) {
+        console.error("Analytics Error:", error);
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 };

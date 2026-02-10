@@ -87,14 +87,20 @@ export default function TablePage({ params }) {
         // Socket Connection
         const socket = getSocket();
         socket.emit("join_table_room", { restroId, tableId });
+        socket.emit("join_public_room", restroId); // New Room for Restro-wide updates
+
+        socket.on("restaurant_status_update", (status) => {
+            console.log("Restaurant Status Update:", status);
+            setRestaurant(prev => prev ? { ...prev, ...status } : prev);
+            if (!status.isOpen || !status.isActive) {
+                alert("Restaurant has closed or is not accepting orders.");
+            }
+        });
 
         socket.on("order_update", (updatedOrder) => {
             if (updatedOrder.status === "COMPLETED") {
                 setActiveOrders(prev => {
                     const next = prev.filter(o => o._id !== updatedOrder._id);
-                    // If all orders completed/removed, we don't necessarily end the session immediately 
-                    // unless table_freed is called. But if it was the last order, maybe?
-                    // We'll rely on table_freed for session end.
                     return next;
                 });
             } else {
@@ -135,6 +141,7 @@ export default function TablePage({ params }) {
             socket.off("table_freed");
             socket.off("table_service_update");
             socket.off("table_bill_update");
+            socket.off("restaurant_status_update");
         };
 
     }, [restroId, tableId]);
@@ -209,8 +216,15 @@ export default function TablePage({ params }) {
             });
             setCart({});
             setViewMode("TRACKER");
+            setViewMode("TRACKER");
         } catch (err) {
-            alert("Failed to place order: " + (err.response?.data?.message || err.message));
+            console.error("Failed to place order", err);
+
+            if (err.response && err.response.status === 503) {
+                alert(err.response.data.message || "We are currently not serving. Please try again later.");
+            } else {
+                alert("Failed to place order: " + (err.response?.data?.message || err.message));
+            }
         }
     };
 
@@ -303,6 +317,24 @@ export default function TablePage({ params }) {
                     <div className="flex items-center justify-center gap-2">
                         <CheckCircle className="h-5 w-5" />
                         <span>Payment Received. Thank you!</span>
+                    </div>
+                </div>
+            )}
+
+            {/* Restaurant Closed Banner */}
+            {restaurant && (!restaurant.isOpen || !restaurant.isActive) && (
+                <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-6">
+                    <div className="bg-card border border-border p-8 rounded-2xl shadow-2xl max-w-md text-center">
+                        <div className="bg-red-100 text-red-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Clock size={32} />
+                        </div>
+                        <h2 className="text-2xl font-bold mb-2">Service Unavailable</h2>
+                        <p className="text-muted-foreground mb-6">
+                            {restaurant.name} is currently closed or not accepting orders. Please check back later.
+                        </p>
+                        <button onClick={() => window.location.reload()} className="bg-primary text-primary-foreground px-6 py-2 rounded-full font-bold">
+                            Refresh Status
+                        </button>
                     </div>
                 </div>
             )}
@@ -494,14 +526,25 @@ export default function TablePage({ params }) {
             <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={async () => {
+                    const newState = !table?.requestService;
+                    // Optimistic update
+                    setTable(prev => ({ ...prev, requestService: newState }));
+
                     try {
-                        const newState = !table?.requestService;
-                        setTable(prev => ({ ...prev, requestService: newState })); // Optimistic
                         await axios.post(`${API_URL}/restaurants/public/${restroId}/table/${tableId}/service`, { active: newState });
-                        alert(newState ? "Waiter has been notified!" : "Request cancelled");
+                        // Success - user feedback provided by UI state
                     } catch (err) {
                         console.error("Failed to call waiter", err);
-                        setTable(prev => ({ ...prev, requestService: !prev.requestService })); // Revert
+
+                        // Revert Optimistic Update
+                        setTable(prev => ({ ...prev, requestService: !newState }));
+
+                        // Handle 503 explicitly
+                        if (err.response && err.response.status === 503) {
+                            alert(err.response.data.message || "We are currently not serving (No Waiters Online).");
+                        } else {
+                            alert("Failed to update request. Please try again.");
+                        }
                     }
                 }}
                 className={`fixed bottom-24 right-4 z-40 p-3 rounded-full shadow-lg flex items-center justify-center transition-colors ${table?.requestService ? 'bg-yellow-500 text-white animate-pulse' : 'bg-white text-yellow-500 border border-yellow-200'}`}

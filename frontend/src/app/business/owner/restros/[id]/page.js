@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { DollarSign, Utensils, Clock, Globe, ArrowUpRight, MoreHorizontal, Loader2, User, LayoutGrid } from "lucide-react";
-import { motion } from "framer-motion";
+import { DollarSign, Utensils, Clock, Globe, ArrowUpRight, MoreHorizontal, Loader2, User, LayoutGrid, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useParams } from "next/navigation";
 import useRestaurantStore from "@/store/useRestaurantStore";
 import useAuthStore from "@/store/useAuthStore";
@@ -33,59 +33,54 @@ const KPICard = ({ title, value, sub, icon: Icon, trend }) => (
     </div>
 );
 
-const ChartMock = () => (
+const RevenueChart = ({ data }) => (
     <div className="bg-card text-card-foreground p-6 rounded-xl shadow-sm border border-border col-span-2">
         <div className="flex justify-between items-center mb-6">
-            <h3 className="font-bold">Revenue Overview (Mock)</h3>
-            <select className="text-sm border-none bg-secondary/50 rounded-lg px-2 py-1 text-muted-foreground focus:outline-none">
-                <option>Last 7 Days</option>
-            </select>
+            <h3 className="font-bold">Revenue Overview (Last 7 Days)</h3>
         </div>
         <div className="h-64 flex items-end gap-4 overflow-hidden">
-            {[40, 65, 45, 80, 55, 90, 70].map((h, i) => (
+            {data?.map((d, i) => (
                 <motion.div
-                    key={i}
+                    key={d.date}
                     initial={{ height: 0 }}
-                    animate={{ height: `${h}%` }}
+                    animate={{ height: `${(d.revenue / (Math.max(...data.map(x => x.revenue)) || 1)) * 100}%` }} // Normalize height
                     transition={{ duration: 0.8, delay: i * 0.1 }}
-                    className="flex-1 bg-gradient-to-t from-gray-900 to-gray-600 dark:from-sunset dark:to-orange-600 rounded-t-lg relative group opacity-90 hover:opacity-100 transition-opacity"
+                    className="flex-1 bg-gradient-to-t from-gray-900 to-gray-600 dark:from-sunset dark:to-orange-600 rounded-t-lg relative group opacity-90 hover:opacity-100 transition-opacity min-h-[4px]"
                 >
                     <div className="absolute -top-8 w-full text-center text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity text-foreground">
-                        {h}k
+                        ₹{d.revenue}
                     </div>
                 </motion.div>
             ))}
+            {(!data || data.length === 0) && <div className="w-full text-center text-muted-foreground self-center">No revenue data</div>}
         </div>
         <div className="flex justify-between mt-4 text-xs text-muted-foreground font-medium uppercase">
-            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+            {data?.map(d => <span key={d.date}>{d.day}</span>)}
         </div>
     </div>
 );
 
-const PopularDishesMock = () => (
+const PopularDishes = ({ data }) => (
     <div className="bg-card text-card-foreground p-6 rounded-xl shadow-sm border border-border">
-        <h3 className="font-bold mb-6">Popular Dishes (Mock)</h3>
+        <h3 className="font-bold mb-6">Popular Dishes (Last 30 Days)</h3>
         <div className="space-y-5">
-            {[
-                { name: "Truffle Pizza", sales: "84%", color: "bg-sunset" },
-                { name: "Spicy Wings", sales: "62%", color: "bg-orange-400" },
-                { name: "Burrata Salad", sales: "45%", color: "bg-yellow-400" },
-            ].map((d) => (
+            {data?.map((d) => (
                 <div key={d.name}>
                     <div className="flex justify-between text-sm mb-1.5">
                         <span className="font-medium text-muted-foreground">{d.name}</span>
-                        <span className="font-bold text-foreground">{d.sales}</span>
+                        <span className="font-bold text-foreground">{d.sales} ({d.count})</span>
                     </div>
                     <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
                         <motion.div
                             initial={{ width: 0 }}
-                            animate={{ width: d.sales }}
+                            animate={{ width: d.sales.replace('%', '') + '%' }} // Ensure % for css width
                             transition={{ duration: 1 }}
                             className={`h-full rounded-full ${d.color}`}
                         />
                     </div>
                 </div>
             ))}
+            {(!data || data.length === 0) && <div className="text-center text-muted-foreground py-8">No sales data yet</div>}
         </div>
     </div>
 );
@@ -97,7 +92,9 @@ export default function RestaurantDashboard() {
 
     // Data State
     const [orders, setOrders] = useState([]);
+    const [analytics, setAnalytics] = useState({ revenue: [], popularDishes: [] });
     const [statsLoading, setStatsLoading] = useState(true);
+    const [selectedTable, setSelectedTable] = useState(null);
 
     // Find restaurant data
     const currentRestaurant = restaurants.find(r => r._id === params.id);
@@ -113,20 +110,28 @@ export default function RestaurantDashboard() {
             else fetchRestaurantById(params.id);
         }
 
-        // Fetch Orders
-        const fetchOrders = async () => {
+        // Fetch Orders & Analytics
+        const fetchData = async () => {
             try {
                 setStatsLoading(true);
-                const res = await axios.get(`${API_URL}/orders/active/${params.id}`, { withCredentials: true });
-                setOrders(res.data || []);
+                const [ordersRes, analyticsRes] = await Promise.all([
+                    axios.get(`${API_URL}/orders/active/${params.id}`, { withCredentials: true }),
+                    user.roles.includes('owner') || user.roles.includes('manager') ?
+                        axios.get(`${API_URL}/restaurants/analytics/${params.id}`, { withCredentials: true }) : Promise.resolve({ data: {} })
+                ]);
+
+                setOrders(ordersRes.data || []);
+                if (analyticsRes.data?.success) {
+                    setAnalytics(analyticsRes.data);
+                }
             } catch (err) {
-                console.error("Failed to load orders", err);
+                console.error("Failed to load dashboard data", err);
             } finally {
                 setStatsLoading(false);
             }
         };
 
-        fetchOrders();
+        fetchData();
     }, [user, isAuthenticated, fetchRestaurants, fetchRestaurantById, params.id, currentRestaurant]);
 
     // Socket Integration
@@ -135,45 +140,52 @@ export default function RestaurantDashboard() {
 
         const socket = getSocket();
         socket.emit("join_staff_room", params.id);
+        console.log("Owner Joined Staff Room:", params.id);
 
         const handleNewOrder = (newOrder) => {
-            setOrders(prev => [newOrder, ...prev]);
+            setOrders(prev => {
+                if (prev.find(o => o._id === newOrder._id)) return prev;
+                return [newOrder, ...prev];
+            });
+            // Refresh restaurant metadata (tables status)
+            fetchRestaurantById(params.id);
         };
 
         const handleOrderUpdate = (updatedOrder) => {
             setOrders(prev => {
-                // If Completed/Paid, remove from Active View?
-                // Owner might want to see them turn green. 
-                // Let's keep them but update status.
-                // Or if we want strictly "Active List", remove if Completed.
-                // Let's update status for now.
                 const exists = prev.find(o => o._id === updatedOrder._id);
                 if (exists) {
                     return prev.map(o => o._id === updatedOrder._id ? updatedOrder : o);
                 }
-                // If not found, add (maybe came while offline)
                 return [updatedOrder, ...prev];
             });
+            fetchRestaurantById(params.id);
         };
 
-        const handleTableFreed = () => {
-            fetchRestaurantById(params.id); // Refresh table status (occupancy)
+        const handleRefresh = () => {
+            // Triggered by table_freed, service_update, bill_update, staff_update
+            console.log("Socket: Refreshing Restaurant Data...");
+            fetchRestaurantById(params.id);
         };
 
-        socket.on("new_order", (o) => {
-            handleNewOrder(o);
-            fetchRestaurantById(params.id); // Refresh table status (occupancy)
-        });
+        socket.on("new_order", handleNewOrder);
         socket.on("order_update", handleOrderUpdate);
-        socket.on("table_freed", handleTableFreed);
+
+        // Table & Status Updates
+        socket.on("table_freed", handleRefresh);
+        socket.on("table_service_update", handleRefresh);
+        socket.on("table_bill_update", handleRefresh);
+        socket.on("staff_update", handleRefresh); // When staff logs in/out
 
         return () => {
-            socket.off("new_order", handleNewOrder); // We used anonymous wrapper above, this might not fully detach but component unmount handles it mostly. 
-            // Better practice: extract the wrapper to named function if needed, but for now this is okay or we can just ignore specific detach implementation detail as strict mode runs twice.
+            socket.off("new_order", handleNewOrder);
             socket.off("order_update", handleOrderUpdate);
-            socket.off("table_freed", handleTableFreed);
+            socket.off("table_freed", handleRefresh);
+            socket.off("table_service_update", handleRefresh);
+            socket.off("table_bill_update", handleRefresh);
+            socket.off("staff_update", handleRefresh);
         };
-    }, [params.id]);
+    }, [params.id, fetchRestaurantById]);
 
 
     if (!currentRestaurant) {
@@ -234,11 +246,11 @@ export default function RestaurantDashboard() {
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${order.status === 'PLACED' ? 'bg-blue-100 text-blue-700' :
-                                                order.status === 'PREPARING' ? 'bg-orange-100 text-orange-700' :
-                                                    order.status === 'READY' ? 'bg-green-100 text-green-700' :
-                                                        order.status === 'SERVED' ? 'bg-purple-100 text-purple-700' :
-                                                            order.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' :
-                                                                'bg-gray-100 text-gray-700'
+                                            order.status === 'PREPARING' ? 'bg-orange-100 text-orange-700' :
+                                                order.status === 'READY' ? 'bg-green-100 text-green-700' :
+                                                    order.status === 'SERVED' ? 'bg-purple-100 text-purple-700' :
+                                                        order.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' :
+                                                            'bg-gray-100 text-gray-700'
                                             }`}>
                                             {order.status}
                                         </span>
@@ -276,9 +288,102 @@ export default function RestaurantDashboard() {
 
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <ChartMock />
-                <PopularDishesMock />
+                <RevenueChart data={analytics.revenue} />
+                <PopularDishes data={analytics.popularDishes} />
             </div>
+
+            {/* Table Details Modal */}
+            <AnimatePresence>
+                {selectedTable && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+                        onClick={() => setSelectedTable(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+                            className="bg-background text-foreground w-full max-w-lg rounded-xl shadow-2xl border border-border overflow-hidden"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="p-6 border-b border-border flex justify-between items-center bg-secondary/30">
+                                <div>
+                                    <h3 className="font-bold text-xl flex items-center gap-2">
+                                        Table {selectedTable.tableNumber}
+                                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase ${selectedTable.isOccupied ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                                            {selectedTable.isOccupied ? 'Occupied' : 'Free'}
+                                        </span>
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground mt-1">Capacity: {selectedTable.capacity} Persons</p>
+                                </div>
+                                <button onClick={() => setSelectedTable(null)} className="p-2 hover:bg-secondary rounded-full">
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+                                {/* Assigned Waiter */}
+                                <div>
+                                    <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                                        <User size={14} /> Assigned Staff
+                                    </h4>
+                                    {selectedTable.assignedWaiterId ? (
+                                        <div className="flex items-center gap-3 bg-secondary/50 p-3 rounded-lg border border-border/50">
+                                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                                                {currentRestaurant.staff?.find(s => s.user?._id === selectedTable.assignedWaiterId || s.user === selectedTable.assignedWaiterId)?.user?.name?.charAt(0) || 'S'}
+                                            </div>
+                                            <div>
+                                                <p className="font-bold">
+                                                    {currentRestaurant.staff?.find(s => s.user?._id === selectedTable.assignedWaiterId || s.user === selectedTable.assignedWaiterId)?.user?.name || 'Unknown Staff'}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">Waiter</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-sm text-muted-foreground italic">No waiter assigned currently.</div>
+                                    )}
+                                </div>
+
+                                {/* Active Orders */}
+                                {selectedTable.isOccupied && (
+                                    <div>
+                                        <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                                            <Utensils size={14} /> Active Orders
+                                        </h4>
+                                        {orders.filter(o => o.tableId === selectedTable._id && !o.isSessionClosed && o.status !== 'COMPLETED').length > 0 ? (
+                                            <div className="space-y-3">
+                                                {orders.filter(o => o.tableId === selectedTable._id && !o.isSessionClosed && o.status !== 'COMPLETED').map(order => (
+                                                    <div key={order._id} className="bg-secondary/20 border border-border rounded-lg p-3 text-sm">
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <span className="font-mono text-xs text-muted-foreground">#{order._id.slice(-4)}</span>
+                                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${order.status === 'PLACED' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                                {order.status}
+                                                            </span>
+                                                        </div>
+                                                        <div className="space-y-1 mb-2">
+                                                            {order.items.map((item, idx) => (
+                                                                <div key={idx} className="flex justify-between">
+                                                                    <span>{item.quantity}x {item.name}</span>
+                                                                    <span className="font-medium">₹{item.price * item.quantity}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <div className="border-t border-border/50 pt-2 flex justify-between font-bold">
+                                                            <span>Total</span>
+                                                            <span>₹{order.totalAmount}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-muted-foreground">No active orders found for this session.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Floor Status (Live) */}
             <div className="bg-card text-card-foreground rounded-xl shadow-sm border border-border overflow-hidden p-6">
@@ -297,9 +402,10 @@ export default function RestaurantDashboard() {
                         {currentRestaurant.tables.map((table) => (
                             <div
                                 key={table._id}
-                                className={`relative group p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all duration-300 ${table.isOccupied
-                                    ? "border-rose-500/50 bg-rose-500/5 dark:bg-rose-950/20 hover:bg-rose-500/10"
-                                    : "border-emerald-500/50 bg-emerald-500/5 dark:bg-emerald-950/20 hover:bg-emerald-500/10"
+                                onClick={() => setSelectedTable(table)}
+                                className={`relative group p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all duration-300 cursor-pointer ${table.isOccupied
+                                    ? "border-rose-500/50 bg-rose-500/5 dark:bg-rose-950/20 hover:bg-rose-500/10 hover:scale-105 shadow-sm"
+                                    : "border-emerald-500/50 bg-emerald-500/5 dark:bg-emerald-950/20 hover:bg-emerald-500/10 hover:scale-105 shadow-sm"
                                     }`}
                             >
                                 <span className={`font-bold text-lg ${table.isOccupied ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
@@ -330,10 +436,10 @@ export default function RestaurantDashboard() {
             </div>
 
             {/* Orders Tables */}
-            <div className="grid grid-cols-1 gap-8">
+            < div className="grid grid-cols-1 gap-8" >
                 <OrderTable title="Active Kitchen Orders" data={activeList} emptyMsg="No active orders" />
                 <OrderTable title="Completed / Paid Orders" data={completedList} emptyMsg="No completed orders today" />
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

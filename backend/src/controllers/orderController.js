@@ -16,6 +16,14 @@ export const placeOrder = async (req, res) => {
         const restaurant = await Restaurant.findById(restaurantId);
         if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
 
+        // CLOSED/INACTIVE CHECK
+        if (!restaurant.isActive || !restaurant.isOpen) {
+            return res.status(503).json({
+                message: "Restaurant is currently closed or not accepting orders.",
+                isClosed: true
+            });
+        }
+
         // Find table using subdocument ID
         const table = restaurant.tables.id(tableId);
         if (!table) return res.status(404).json({ message: "Table not found" });
@@ -37,15 +45,38 @@ export const placeOrder = async (req, res) => {
         // ---------------------------------------------------------
         // Waiter Assignment Logic (Load Balancing)
         // ---------------------------------------------------------
+        // ---------------------------------------------------------
+        // Waiter Assignment Logic (Load Balancing) & Availability Check
+        // ---------------------------------------------------------
         let assignedWaiterId = table.assignedWaiterId;
 
-        if (!assignedWaiterId) {
-            // Find all active waiters in this restaurant
-            const waiters = restaurant.staff.filter(s => s.role === 'waiter' && s.isActive);
+        // Get all active staff
+        const activeStaff = restaurant.staff.filter(s => s.isActive);
+        const activeWaiters = activeStaff.filter(s => s.role === 'waiter');
+        const activeKitchen = activeStaff.filter(s => s.role === 'kitchen');
+        const activeManagers = activeStaff.filter(s => s.role === 'manager');
+        const ownerOnline = true; // Owner is always considered "available" if we want, or we can check a status
 
-            if (waiters.length > 0) {
+        // Strict Check: Must have at least one active STAFF member (waiter, manager, or compatible) to accept orders
+        // User requested: "check for active waiters and then if available assign else show... not accepting"
+        // We will interpret this as: If NO active waiters AND NO active managers, we might reject. 
+        // But usually, if kitchen is missing, it's also a problem.
+
+        if (activeWaiters.length === 0) {
+            return res.status(503).json({
+                message: "We are currently not accepting orders (No waiters available). Please try again later."
+            });
+        }
+
+        if (activeKitchen.length === 0 && activeManagers.length === 0) {
+            // Optional: Kitchen check
+            // return res.status(503).json({ message: "Kitchen is currently closed." });
+        }
+
+        if (!assignedWaiterId) {
+            if (activeWaiters.length > 0) {
                 // Calculate current active tables for each waiter
-                const waiterLoad = waiters.map(w => {
+                const waiterLoad = activeWaiters.map(w => {
                     const activeCount = restaurant.tables.filter(t =>
                         t.assignedWaiterId && t.assignedWaiterId.toString() === w.user.toString()
                     ).length;

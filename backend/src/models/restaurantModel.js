@@ -110,7 +110,7 @@ const RestaurantSchema = new mongoose.Schema(
           start: String, // e.g., "09:00"
           end: String,   // e.g., "17:00"
         },
-        isActive: { type: Boolean, default: true },
+        isActive: { type: Boolean, default: false },
         joinedAt: { type: Date, default: Date.now },
       },
     ],

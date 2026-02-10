@@ -267,7 +267,8 @@ function BusinessOwnerPageContent() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {restaurants.map((restro) => {
-                        const isOpen = isRestaurantOpen(restro.openingHours || restro.timings);
+                        const isTimingsOpen = isRestaurantOpen(restro.openingHours || restro.timings);
+                        const isOpen = restro.isActive && restro.isOpen && isTimingsOpen;
                         return (
                             <div key={restro._id} className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-slate-800 group hover:border-sunset/50 transition-colors">
                                 <div className="flex justify-between items-start mb-4">
@@ -286,7 +287,7 @@ function BusinessOwnerPageContent() {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className={`text-xs font-bold ${isOpen ? 'text-green-600' : 'text-red-500'}`}>
-                                            {isOpen ? 'Open' : 'Closed'}
+                                            {!restro.isActive ? 'Inactive' : (!restro.isOpen ? 'Closed' : (!isTimingsOpen ? 'Closed' : 'Open'))}
                                         </span>
                                         <div className={`h-2.5 w-2.5 rounded-full ${isOpen ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
                                     </div>

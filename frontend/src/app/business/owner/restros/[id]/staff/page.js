@@ -9,19 +9,14 @@ import {
     AlertCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getSocket } from "@/lib/socket";
 
 const StaffCard = ({ staff, onRemove, onChangePassword }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     // Calculate Active Status dynamically
-    const isActive = () => {
-        if (!staff.shift) return false;
-        const now = new Date();
-        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        return currentTime >= staff.shift.start && currentTime <= staff.shift.end;
-    };
-
-    const active = isActive();
+    // Use the database status (toggle) instead of shift time
+    const active = staff.isActive;
 
     const staffName = staff.user?.name || "Unknown Staff";
     const staffEmail = staff.user?.email || "No Email";
@@ -328,8 +323,27 @@ export default function StaffPage() {
     const restaurantId = params.id;
 
     // Get restaurant data (which already includes staff) - no separate fetch needed!
-    const { restaurants, addStaffMember, removeStaffMember, updateStaffPassword } = useRestaurantStore();
+    const { restaurants, addStaffMember, removeStaffMember, updateStaffPassword, fetchRestaurantById } = useRestaurantStore();
     const currentRestaurant = restaurants.find(r => r._id === restaurantId);
+
+    // Socket Listener for Realtime Staff Status
+    useEffect(() => {
+        if (!restaurantId) return;
+
+        const socket = getSocket();
+        socket.emit("join_staff_room", restaurantId);
+
+        const handleStaffUpdate = (data) => {
+            // Refetch to update UI
+            fetchRestaurantById(restaurantId);
+        };
+
+        socket.on("staff_update", handleStaffUpdate);
+
+        return () => {
+            socket.off("staff_update", handleStaffUpdate);
+        };
+    }, [restaurantId, fetchRestaurantById]);
 
     // Get staff from restaurant object (already fetched by layout)
     const currentStaff = currentRestaurant?.staff || [];
