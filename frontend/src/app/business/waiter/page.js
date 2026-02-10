@@ -108,7 +108,7 @@ function WaiterPOSPageContent() {
 
         const socket = getSocket();
         console.log("Joined Staff Room:", restaurantId);
-        socket.emit("join_staff_room", restaurantId);
+        socket.emit("join_staff_room", { restaurantId, userId });
 
         const handleUpdate = (data) => {
             console.log("Realtime Update Received:", data);

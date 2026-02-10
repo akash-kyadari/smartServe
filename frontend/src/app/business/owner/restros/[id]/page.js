@@ -85,6 +85,46 @@ const PopularDishes = ({ data }) => (
     </div>
 );
 
+const StaffOverview = ({ staff }) => {
+    // Sort: Active first, then by role
+    const sortedStaff = [...(staff || [])].sort((a, b) => {
+        if (a.isActive === b.isActive) return 0;
+        return a.isActive ? -1 : 1;
+    });
+
+    return (
+        <div className="bg-card text-card-foreground p-6 rounded-xl shadow-sm border border-border h-fit">
+            <h3 className="font-bold mb-4 flex items-center justify-between">
+                Staff Status
+                <span className="text-xs font-normal text-muted-foreground bg-secondary px-2 py-1 rounded-full">
+                    {staff?.filter(s => s.isActive).length || 0} Online
+                </span>
+            </h3>
+            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                {sortedStaff.map((s) => (
+                    <div key={s._id} className={`flex items-center justify-between ${!s.isActive && 'opacity-50'}`}>
+                        <div className="flex items-center gap-3">
+                            <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs ${s.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-secondary text-muted-foreground'}`}>
+                                {(s.user?.name || s.name || '?').charAt(0)}
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold leading-none">{s.user?.name || 'Unknown'}</p>
+                                <p className="text-[10px] uppercase text-muted-foreground">{s.role}</p>
+                            </div>
+                        </div>
+                        {s.isActive ? (
+                            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.4)]"></span>
+                        ) : (
+                            <span className="text-[10px] text-muted-foreground">Offline</span>
+                        )}
+                    </div>
+                ))}
+                {(!staff || staff.length === 0) && <p className="text-muted-foreground text-sm italic">No staff members found.</p>}
+            </div>
+        </div>
+    );
+};
+
 export default function RestaurantDashboard() {
     const params = useParams();
     const { restaurants, fetchRestaurants, fetchRestaurantById } = useRestaurantStore();
@@ -286,10 +326,13 @@ export default function RestaurantDashboard() {
                 <KPICard title="Online Status" value={currentRestaurant.isActive ? "Active" : "Inactive"} sub="Store visibility" trend="" icon={Globe} />
             </div>
 
-            {/* Charts */}
+            {/* Charts & Staff */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <RevenueChart data={analytics.revenue} />
-                <PopularDishes data={analytics.popularDishes} />
+                <div className="space-y-6">
+                    <PopularDishes data={analytics.popularDishes} />
+                    <StaffOverview staff={currentRestaurant.staff} />
+                </div>
             </div>
 
             {/* Table Details Modal */}
