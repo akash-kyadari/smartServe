@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowRight, Mail, Lock, User, Loader2, AlertCircle } from "lucide-react";
@@ -16,8 +16,15 @@ export default function SignupPage() {
     const emailRef = useRef(null);
     const passwordRef = useRef(null);
 
-    const { signup, isLoading, error: storeError } = useAuthStore();
+    const { signup, isLoading, error: storeError, isAuthenticated, isLoading: authLoading } = useAuthStore();
     const router = useRouter();
+
+    // Redirect if already authenticated
+    useEffect(() => {
+        if (!authLoading && isAuthenticated) {
+            router.push('/');
+        }
+    }, [isAuthenticated, authLoading, router]);
 
     const validateInputs = () => {
         const name = nameRef.current.value;

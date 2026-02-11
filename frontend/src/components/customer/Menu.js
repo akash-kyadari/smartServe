@@ -1,6 +1,6 @@
 "use client";
 import { useState, useMemo } from "react";
-import { Minus, Plus, Search, Filter, Star } from "lucide-react";
+import { Minus, Plus, Search, Star, Sparkles, ChefHat } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Menu({ menu, addToCart, removeFromCart, cartItems }) {
@@ -30,126 +30,159 @@ export default function Menu({ menu, addToCart, removeFromCart, cartItems }) {
     };
 
     return (
-        <div className="pb-32 bg-secondary/10 min-h-screen">
-            {/* Search & Filter - Sticky under main header */}
-            <div className="sticky top-[72px] z-10 bg-background/95 backdrop-blur-md shadow-sm border-b border-border/50 pb-2 pt-2">
-                <div className="px-4 mb-3">
-                    <div className="relative group">
-                        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+        <div className="pb-32 min-h-screen">
+            {/* Search & Filter - Sticky */}
+            <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-xl shadow-sm border-b border-border/50 pb-4 pt-4">
+                <div className="px-4 mb-4">
+                    <div className="relative group max-w-2xl mx-auto">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
                         <input
                             type="text"
-                            placeholder="Search dishes..."
-                            className="w-full pl-10 pr-4 py-2.5 bg-secondary/50 border border-transparent focus:border-primary/20 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all font-medium"
+                            placeholder="Search for your favorite dish..."
+                            className="w-full pl-12 pr-4 py-3.5 bg-card border-2 border-border focus:border-primary/50 rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all font-medium shadow-sm"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
                 </div>
 
-                <div className="flex overflow-x-auto px-4 gap-3 no-scrollbar pb-2">
+                <div className="flex overflow-x-auto px-4 gap-2 no-scrollbar pb-2">
                     {categories.map((cat) => (
                         <button
                             key={cat}
                             onClick={() => setActiveCategory(cat)}
-                            className={`px-5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all transform active:scale-95 ${activeCategory === cat
-                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25 ring-2 ring-primary ring-offset-2 ring-offset-background"
-                                : "bg-white dark:bg-card border border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
+                            className={`px-6 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all transform active:scale-95 ${activeCategory === cat
+                                    ? "bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/30 scale-105"
+                                    : "bg-card border-2 border-border text-muted-foreground hover:border-primary/30 hover:text-foreground hover:shadow-md"
                                 }`}
                         >
+                            {cat === "All" && <Sparkles className="inline h-4 w-4 mr-1" />}
                             {cat}
                         </button>
                     ))}
                 </div>
             </div>
 
-            {/* Menu Grid */}
-            <div className="p-4 grid gap-5 max-w-2xl mx-auto">
+            {/* Menu Grid - Premium Layout */}
+            <div className="p-4 md:p-6 max-w-7xl mx-auto">
                 <AnimatePresence mode="popLayout">
-                    {filteredMenu.map((item) => {
-                        const qty = getQuantity(item._id);
-                        return (
-                            <motion.div
-                                layout
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                key={item._id}
-                                className="group relative bg-card rounded-2xl p-3 shadow-sm border border-border/50 hover:border-primary/20 transition-all flex gap-4 overflow-hidden"
-                            >
-                                {/* Image Section */}
-                                <div className="w-28 h-28 shrink-0 rounded-xl overflow-hidden bg-secondary relative shadow-inner">
-                                    {item.image ? (
-                                        <img src={item.image} alt={item.name} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px] font-medium bg-secondary/80">No Image</div>
-                                    )}
-                                    {/* Veg Badge */}
-                                    <div className="absolute top-2 left-2 bg-background/90 backdrop-blur-sm p-1 rounded shadow-sm z-10">
-                                        <div className={`w-3 h-3 border ${item.isVeg ? 'border-green-600' : 'border-red-600'} flex items-center justify-center`}>
-                                            <div className={`w-1.5 h-1.5 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-600'}`} />
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filteredMenu.map((item) => {
+                            const qty = getQuantity(item._id);
+                            return (
+                                <motion.div
+                                    layout
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.9 }}
+                                    key={item._id}
+                                    className="group relative bg-card rounded-3xl overflow-hidden shadow-md hover:shadow-2xl border border-border/50 hover:border-primary/30 transition-all duration-300"
+                                >
+                                    {/* Image Section */}
+                                    <div className="relative h-56 overflow-hidden bg-gradient-to-br from-secondary/30 to-secondary/10">
+                                        {item.image ? (
+                                            <img
+                                                src={item.image}
+                                                alt={item.name}
+                                                className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground">
+                                                <ChefHat className="h-16 w-16 mb-2 opacity-20" />
+                                                <span className="text-xs font-medium opacity-50">No Image</span>
+                                            </div>
+                                        )}
+
+                                        {/* Gradient Overlay */}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+                                        {/* Veg/Non-Veg Badge */}
+                                        <div className="absolute top-3 left-3 bg-background/95 backdrop-blur-md p-1.5 rounded-lg shadow-lg z-10">
+                                            <div className={`w-4 h-4 border-2 ${item.isVeg ? 'border-green-600' : 'border-red-600'} flex items-center justify-center rounded-sm`}>
+                                                <div className={`w-2 h-2 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-600'}`} />
+                                            </div>
+                                        </div>
+
+                                        {/* Rating Badge */}
+                                        {item.rating && item.rating >= 4 && (
+                                            <div className="absolute top-3 right-3 bg-gradient-to-r from-yellow-400 to-orange-400 text-white text-xs font-black px-2.5 py-1.5 rounded-full shadow-lg flex items-center gap-1 z-10">
+                                                <Star size={12} className="fill-white" />
+                                                {item.rating}
+                                            </div>
+                                        )}
+
+                                        {/* Price Tag - Floating */}
+                                        <div className="absolute bottom-3 right-3 bg-background/95 backdrop-blur-md px-4 py-2 rounded-full shadow-lg z-10">
+                                            <span className="font-black text-lg text-primary">₹{item.price}</span>
                                         </div>
                                     </div>
-                                    {/* Rating Badge (Mock) */}
-                                    {item.rating > 4 && (
-                                        <div className="absolute bottom-2 right-2 bg-yellow-400 text-black text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5">
-                                            <Star size={8} className="fill-black" /> {item.rating}
+
+                                    {/* Content Section */}
+                                    <div className="p-5">
+                                        <div className="mb-3">
+                                            <h3 className="font-bold text-lg text-foreground line-clamp-1 mb-1 group-hover:text-primary transition-colors">
+                                                {item.name}
+                                            </h3>
+                                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                                                {item.description || "Delicious dish prepared with care"}
+                                            </p>
                                         </div>
-                                    )}
-                                </div>
 
-                                {/* Content Section */}
-                                <div className="flex-1 flex flex-col justify-between py-1 pr-1">
-                                    <div>
-                                        <div className="flex justify-between items-start">
-                                            <h3 className="font-bold text-base text-foreground line-clamp-2 leading-tight">{item.name}</h3>
-                                            <span className="font-bold text-foreground text-sm">₹{item.price}</span>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1.5 leading-relaxed">{item.description}</p>
-                                    </div>
+                                        <div className="flex items-center justify-between">
+                                            {/* Category Tag */}
+                                            <span className="text-[10px] font-bold text-primary/70 bg-primary/10 px-3 py-1.5 rounded-full uppercase tracking-wider">
+                                                {item.category}
+                                            </span>
 
-                                    <div className="flex items-end justify-between mt-3">
-                                        {/* Tags or Calories (Mock) */}
-                                        <span className="text-[10px] font-semibold text-muted-foreground bg-secondary px-2 py-1 rounded inline-block">
-                                            {item.category}
-                                        </span>
-
-                                        {/* Add Button */}
-                                        {qty > 0 ? (
-                                            <div className="flex items-center gap-3 bg-primary text-primary-foreground rounded-lg px-2 py-1 shadow-md shadow-primary/20">
-                                                <button
-                                                    onClick={() => removeFromCart(item)}
-                                                    className="p-1 hover:bg-black/10 rounded-md transition-colors"
-                                                >
-                                                    <Minus className="h-4 w-4" />
-                                                </button>
-                                                <span className="text-sm font-bold w-4 text-center tabular-nums">{qty}</span>
+                                            {/* Add to Cart Button */}
+                                            {qty > 0 ? (
+                                                <div className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground rounded-full px-3 py-2 shadow-lg shadow-primary/30">
+                                                    <button
+                                                        onClick={() => removeFromCart(item)}
+                                                        className="p-1 hover:bg-white/20 rounded-full transition-colors active:scale-90"
+                                                    >
+                                                        <Minus className="h-4 w-4" />
+                                                    </button>
+                                                    <span className="text-sm font-black w-6 text-center tabular-nums">
+                                                        {qty}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => addToCart(item)}
+                                                        className="p-1 hover:bg-white/20 rounded-full transition-colors active:scale-90"
+                                                    >
+                                                        <Plus className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            ) : (
                                                 <button
                                                     onClick={() => addToCart(item)}
-                                                    className="p-1 hover:bg-black/10 rounded-md transition-colors"
+                                                    className="px-5 py-2.5 bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground border-2 border-primary/20 hover:border-primary font-bold rounded-full shadow-sm text-xs uppercase tracking-wider transition-all active:scale-95 hover:shadow-lg hover:shadow-primary/20"
                                                 >
-                                                    <Plus className="h-4 w-4" />
+                                                    Add
                                                 </button>
-                                            </div>
-                                        ) : (
-                                            <button
-                                                onClick={() => addToCart(item)}
-                                                className="h-8 px-6 bg-secondary text-primary border border-primary/20 font-bold rounded-lg shadow-sm text-xs tracking-wider uppercase hover:bg-primary hover:text-primary-foreground transition-all active:scale-95"
-                                            >
-                                                Add
-                                            </button>
-                                        )}
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            </motion.div>
-                        );
-                    })}
+
+                                    {/* Hover Shine Effect */}
+                                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
+                                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                                    </div>
+                                </motion.div>
+                            );
+                        })}
+                    </div>
                 </AnimatePresence>
 
                 {filteredMenu.length === 0 && (
-                    <div className="text-center py-20 flex flex-col items-center opacity-60">
-                        <Search className="h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="font-bold text-lg">No dishes found</h3>
-                        <p className="text-muted-foreground text-sm">Try searching for something else</p>
+                    <div className="text-center py-24 flex flex-col items-center">
+                        <div className="bg-secondary/30 p-8 rounded-full mb-6">
+                            <Search className="h-16 w-16 text-muted-foreground/30" />
+                        </div>
+                        <h3 className="font-bold text-2xl text-foreground mb-2">No dishes found</h3>
+                        <p className="text-muted-foreground text-sm max-w-sm">
+                            Try adjusting your search or browse a different category
+                        </p>
                     </div>
                 )}
             </div>

@@ -69,6 +69,11 @@ const useAuthStore = create((set) => ({
 
             set({ user: null, isAuthenticated: false, isLoading: false });
             useRestaurantStore.getState().reset();
+
+            // Redirect to home page
+            if (typeof window !== 'undefined') {
+                window.location.href = '/';
+            }
         } catch (error) {
             set({ error: error.message, isLoading: false });
         }

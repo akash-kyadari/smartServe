@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { ArrowRight, Mail, User, Lock, Eye, EyeOff, Loader2, AlertCircle, Store } from "lucide-react";
 import { motion } from "framer-motion";
@@ -17,7 +17,14 @@ export default function RestroSignup() {
     const passwordRef = useRef(null);
 
     const router = useRouter();
-    const { signup, isLoading, error: storeError } = useAuthStore();
+    const { signup, isLoading, error: storeError, isAuthenticated, isLoading: authLoading, user } = useAuthStore();
+
+    // Redirect if already authenticated as restaurant staff
+    useEffect(() => {
+        if (!authLoading && isAuthenticated && user?.role !== 'customer') {
+            router.push('/');
+        }
+    }, [isAuthenticated, authLoading, user, router]);
 
     const validateInputs = () => {
         const name = nameRef.current.value;

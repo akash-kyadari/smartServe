@@ -180,8 +180,8 @@ const Hero = () => {
           <div className="flex justify-center gap-4">
             {isAuthenticated ? (
               <Link href="/restaurants" className="px-8 py-3 bg-sunset text-white rounded-full font-bold text-lg shadow-2xl hover:opacity-95 transition-transform hover:-translate-y-1 flex items-center gap-2">
-                <Calendar size={20} />
-                Book a Table
+
+                Browse Restaurants
               </Link>
             ) : (
               <>

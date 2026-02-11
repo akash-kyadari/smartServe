@@ -30,7 +30,11 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api/restaurants", restaurantRouter);
 // Order routes
+// Order routes
 app.use("/api/orders", orderRouter);
+// Booking routes
+import bookingRouter from "./routers/bookingRouter.js";
+app.use("/api/bookings", bookingRouter);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {

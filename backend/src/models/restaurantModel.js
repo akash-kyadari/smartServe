@@ -24,6 +24,7 @@ const RestaurantSchema = new mongoose.Schema(
         lat: Number,
         lng: Number,
       },
+      locationUrl: String, // Google Maps URL
     },
 
     // Owner Info (linked auth user)

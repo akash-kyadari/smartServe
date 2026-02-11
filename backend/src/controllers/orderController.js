@@ -1,7 +1,8 @@
 import Order from "../models/OrderModel.js";
 import mongoose from "mongoose";
 import Restaurant from "../models/RestaurantModel.js";
-import { io } from "../socket/socket.js";
+import Booking from "../models/BookingModel.js";
+import { io } from "../socket/socket.js"; // Import Booking model
 
 // Place Order
 export const placeOrder = async (req, res) => {
@@ -27,6 +28,46 @@ export const placeOrder = async (req, res) => {
         // Find table using subdocument ID
         const table = restaurant.tables.id(tableId);
         if (!table) return res.status(404).json({ message: "Table not found" });
+
+        // ---------------------------------------------------------------------
+        // 🔒 CONFLICT CHECK: 1-Hour Booking Protection Rule
+        // ---------------------------------------------------------------------
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
+        const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().split('T')[0];
+
+        const candidateBookings = await Booking.find({
+            restaurantId,
+            tableId,
+            status: { $in: ['confirmed', 'grace'] },
+            date: { $in: [todayStr, tomorrowStr] }
+        });
+
+        const conflictBooking = candidateBookings.find(b => {
+            // Construct booking datetime
+            // Note: Simplistic parsing assumes local/server time consistency or UTC Z
+            // Ideally use a library like date-fns or moment, but vanilla JS for now
+            const bDate = new Date(`${b.date}T${b.startTime}`);
+            const diffMs = bDate - now;
+            const diffMins = diffMs / 60000;
+
+            // Conflict if booking starts within the next 60 minutes
+            // (diffMins > 0 means future, <= 60 means within hour)
+            // Also if booking is technically "now" (active/grace), diff might be negative but status checks cover 'active'. 
+            // If status is 'confirmed' but passed start time (grace period), diff is negative. 
+            // We should block those too! 
+            // Rules say: "Booking active (grace/occupied) -> Reject". 
+            // So if diffMins <= 60 && diffMins > -30 (grace period overlap)
+            return diffMins <= 60 && diffMins > -20;
+        });
+
+        if (conflictBooking) {
+            return res.status(409).json({
+                message: `Table is reserved for ${conflictBooking.startTime}. Please select another table.`,
+                isConflict: true
+            });
+        }
+        // ---------------------------------------------------------------------
 
         // Create Order
         const newOrder = new Order({
