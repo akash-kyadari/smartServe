@@ -58,46 +58,8 @@ io.on("connection", (socket) => {
     socket.on("disconnect", async () => {
         console.log("User disconnected:", socket.id);
 
-        // Use Socket properties attached during join
-        const userId = socket.userId;
-        const restroId = socket.restroId;
-
-        if (userId && restroId) {
-            // Check if user has any other active sockets (tabs) open
-            // Socket.IO Room 'user_{userId}' automatically manages membership.
-            // When this socket disconnects, it leaves the room.
-            // If the room becomes empty (undefined), it means no tabs are left.
-            const userRoom = io.sockets.adapter.rooms.get(`user_${userId}`);
-
-            if (!userRoom || userRoom.size === 0) {
-                try {
-                    console.log(`User ${userId} went offline (last tab closed). Updating status...`);
-
-                    // Update Restaurant Model
-                    await Restaurant.updateOne(
-                        { _id: restroId, "staff.user": userId },
-                        { $set: { "staff.$.isActive": false } }
-                    );
-
-                    // Update User Model (for consistency)
-                    await User.updateOne(
-                        { _id: userId, "workingAt.restaurantId": restroId },
-                        { $set: { "workingAt.$.isActive": false } }
-                    );
-
-                    // Notify Room
-                    io.to(`restro_staff_${restroId}`).emit("staff_update", {
-                        staffId: userId,
-                        isActive: false
-                    });
-
-                } catch (error) {
-                    console.error("Error updating offline status:", error);
-                }
-            } else {
-                console.log(`User ${userId} still has ${userRoom.size} active tabs. Keeping status Online.`);
-            }
-        }
+        // removed auto-offline logic on disconnect to prevent status flickering on refresh
+        // Users must create explicit "Go Offline" action or rely on session timeout (future improvement)
     });
 });
 

@@ -204,7 +204,7 @@ function KitchenPageContent() {
                         </div>
                         <div className="bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2 border border-green-200 dark:border-green-800 animate-pulse">
                             <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                            Live Socket
+                            Live 
                         </div>
                     </div>
                 </header>

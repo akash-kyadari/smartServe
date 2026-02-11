@@ -176,10 +176,11 @@ export default function RestaurantDashboard() {
 
     // Socket Integration
     useEffect(() => {
-        if (!params.id) return;
+        if (!params.id || !user) return;
 
         const socket = getSocket();
-        socket.emit("join_staff_room", params.id);
+        // IMPORTANT: Pass object with userId so server attaches it to socket for room tracking
+        socket.emit("join_staff_room", { restaurantId: params.id, userId: user._id });
         console.log("Owner Joined Staff Room:", params.id);
 
         const handleNewOrder = (newOrder) => {

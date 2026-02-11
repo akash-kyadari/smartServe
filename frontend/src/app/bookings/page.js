@@ -60,10 +60,10 @@ export default function BookingsPage() {
         if (!acc[key]) {
             acc[key] = {
                 ...booking,
-                tables: [booking.tableId]
+                tables: [booking.tableNumber || booking.tableId] // Prefer table number
             };
         } else {
-            acc[key].tables.push(booking.tableId);
+            acc[key].tables.push(booking.tableNumber || booking.tableId);
         }
         return acc;
     }, {});

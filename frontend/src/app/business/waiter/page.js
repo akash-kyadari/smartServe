@@ -27,22 +27,34 @@ function WaiterPOSPageContent() {
 
     // Determines initial online status from user profile or local state
     useEffect(() => {
-        if (user && restaurantId) {
-            const employment = user.workingAt?.find(w =>
-                (w.restaurantId === restaurantId || w.restaurantId?._id === restaurantId)
+        // Priority 1: Check real-time restaurant staff data (most accurate)
+        if (currentRestaurant && userId) {
+            const staffMember = currentRestaurant.staff?.find(s =>
+                (s.user === userId || s.user?._id === userId)
             );
-            // Default to true if not found (legacy) or use actual value
-            setIsOnline(employment?.isActive ?? true);
-        }
 
-        if (currentRestaurant) {
+            if (staffMember) {
+                setIsOnline(staffMember.isActive);
+            }
+
+            // Check Restaurant Status
             if (currentRestaurant.isActive === false || currentRestaurant.isOpen === false) {
                 setIsRestroActive(false);
             } else {
                 setIsRestroActive(true);
             }
         }
-    }, [user, restaurantId, currentRestaurant]);
+        // Priority 2: Fallback to User Profile (Login time snapshot)
+        // ONLY if restaurant fetch is done and we genuinely don't have it (though that's an error case usually)
+        // Or if restaurantId exists but for some reason we don't have the object yet (and not loading?)
+        else if (user && restaurantId && !isLoading) {
+            const employment = user.workingAt?.find(w =>
+                (w.restaurantId === restaurantId || w.restaurantId?._id === restaurantId)
+            );
+            // Default to true if not found (legacy) or use actual value
+            setIsOnline(employment?.isActive ?? true);
+        }
+    }, [user, restaurantId, currentRestaurant, userId, isLoading]);
 
     const toggleOnlineStatus = async () => {
         try {

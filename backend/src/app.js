@@ -36,7 +36,7 @@ app.use("/api/orders", orderRouter);
 import bookingRouter from "./routers/bookingRouter.js";
 app.use("/api/bookings", bookingRouter);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT ;
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

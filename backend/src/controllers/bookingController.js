@@ -45,7 +45,7 @@ export const createBooking = async (req, res) => {
 
         // Calculate End Time
         const start = new Date(`${date}T${startTime}`);
-        const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+        const end = new Date(start.getTime() + 1 * 60 * 60 * 1000); // 1 hour default (was 2)
         const endTime = end.toTimeString().slice(0, 5);
 
         // STEP 1: Try to acquire distributed lock
@@ -65,16 +65,26 @@ export const createBooking = async (req, res) => {
             lockId = lock._id;
             console.log(`Lock acquired for table ${tableId} at ${startTime} by user ${userId}`);
         } catch (lockError) {
-            // Lock already exists - another user is booking this slot
+            // Lock already exists - check if it's OUR lock (from selection phase)
             if (lockError.code === 11000) { // Duplicate key error
-                console.log(`Lock conflict for table ${tableId} at ${startTime}`);
-                return res.status(409).json({
-                    success: false,
-                    message: "This table is being booked by another user right now. Please try again in a moment.",
-                    conflict: true
-                });
+                const existingLock = await BookingLock.findOne({ restaurantId, tableId, date, startTime });
+
+                if (existingLock && existingLock.lockedBy.toString() === userId.toString()) {
+                    // We own the lock, so we can proceed!
+                    console.log(`User ${userId} already holds lock for table ${tableId}, proceeding to book.`);
+                    lockAcquired = true;
+                    lockId = existingLock._id;
+                } else {
+                    console.log(`Lock conflict for table ${tableId} at ${startTime}`);
+                    return res.status(409).json({
+                        success: false,
+                        message: "This table is being booked by another user right now. Please try again in a moment.",
+                        conflict: true
+                    });
+                }
+            } else {
+                throw lockError;
             }
-            throw lockError;
         }
 
         // STEP 2: Check for existing confirmed bookings (double-check)
@@ -128,7 +138,9 @@ export const createBooking = async (req, res) => {
         await newBooking.populate('restaurantId', 'name address phone');
 
         // Emit Socket.IO events
-        io.to(`restro_staff_${restaurantId}`).emit('booking:created', {
+        const restroIdStr = restaurantId.toString();
+
+        io.to(`restro_staff_${restroIdStr}`).emit('booking:created', {
             booking: newBooking,
             tableId,
             date,
@@ -136,7 +148,7 @@ export const createBooking = async (req, res) => {
             endTime
         });
 
-        io.to(`restro_public_${restaurantId}`).emit('table:unavailable', {
+        io.to(`restro_public_${restroIdStr}`).emit('table:unavailable', {
             tableId,
             date,
             startTime,
@@ -165,23 +177,94 @@ export const createBooking = async (req, res) => {
 // Get Bookings (For User or Restaurant)
 export const getBookings = async (req, res) => {
     try {
-        const { restaurantId } = req.query; // If provided, fetch for restaurant (Owner/Staff)
+        const { restaurantId, date, startTime } = req.query; // If provided, fetch for restaurant (Owner/Staff)
 
         let query = {};
         if (restaurantId) {
             // Only Owner/Manager checks restaurant bookings
-            // For simplicity, we assume auth middleware handles role checks or we add one here
+            // OR frontend fetches available tables
             query.restaurantId = restaurantId;
+
+            if (date) {
+                query.date = date;
+            }
+
+            if (startTime) {
+                // If checking availability for a specific slot, find overlapping bookings
+                // e.g., if checking 12:00, we need to know if any booking starts/ends around it
+                // Assuming 2-hour slots:
+                // StartTime of existing booking < (RequestedStart + 1h)
+                // EndTime of existing booking > RequestedStart
+                const requestedStart = new Date(`2000-01-01T${startTime}`);
+                const requestedEnd = new Date(requestedStart.getTime() + 1 * 60 * 60 * 1000); // 1 Hour
+                const reqEndStr = requestedEnd.toTimeString().slice(0, 5);
+
+                // Simple string comparison works for HH:mm if format is consistent
+                // Find bookings that overlap with this time window
+                query.$or = [
+                    { startTime: { $lt: reqEndStr, $gte: startTime } }, // Starts during this slot
+                    { endTime: { $gt: startTime, $lte: reqEndStr } },   // Ends during this slot
+                    { startTime: { $lte: startTime }, endTime: { $gte: reqEndStr } } // Covers entire slot
+                ];
+            }
+            // Only fetch active bookings for availability check
+            query.status = { $ne: 'cancelled' };
         } else {
             // Fetch My Bookings (Customer)
             query.userId = req.user._id;
         }
 
         const bookings = await Booking.find(query)
-            .populate('restaurantId', 'name address phone')
-            .sort({ date: 1, startTime: 1 });
+            .populate('restaurantId', 'name address phone tables') // Include tables to resolve number
+            .sort({ date: 1, startTime: 1 })
+            .lean();
 
-        res.status(200).json({ success: true, bookings });
+        // Resolve table numbers and clean up payload
+        bookings.forEach(booking => {
+            if (booking.restaurantId && booking.restaurantId.tables) {
+                const table = booking.restaurantId.tables.find(t => t._id.toString() === booking.tableId.toString());
+                if (table) {
+                    booking.tableNumber = table.tableNumber;
+                }
+                // Remove heavy tables array from response
+                delete booking.restaurantId.tables;
+            }
+        });
+
+        // Also fetch active locks if checking availability
+        let locks = [];
+        if (restaurantId && date && startTime) {
+            const requestedStart = new Date(`2000-01-01T${startTime}`);
+            const requestedEnd = new Date(requestedStart.getTime() + 2 * 60 * 60 * 1000);
+            const reqEndStr = requestedEnd.toTimeString().slice(0, 5);
+
+            locks = await BookingLock.find({
+                restaurantId,
+                date,
+                // Lock overlaps with requested slot
+                $or: [
+                    { startTime: { $lt: reqEndStr, $gte: startTime } },
+                    { endTime: { $gt: startTime, $lte: reqEndStr } },
+                    { startTime: { $lte: startTime }, endTime: { $gte: reqEndStr } }
+                ]
+            });
+        }
+
+        // Combine booked tables and locked tables
+        // Since we are using lean(), bookings are plain objects.
+        // We need to return tableId for availability checks on frontend.
+        // tableId is already in booking object.
+
+        const lockBookings = locks.map(l => ({
+            _id: l._id,
+            tableId: l.tableId,
+            status: 'locked', // Custom status for frontend
+            startTime: l.startTime,
+            endTime: l.endTime,
+            lockedBy: l.lockedBy // <--- Added this field
+        }));
+
+        res.status(200).json({ success: true, bookings: [...bookings, ...lockBookings] });
 
     } catch (error) {
         res.status(500).json({ success: false, message: "Failed to fetch bookings", error: error.message });
@@ -206,17 +289,20 @@ export const cancelBooking = async (req, res) => {
         await booking.save();
 
         // Emit Socket.IO event for real-time updates
+        const restroIdStr = booking.restaurantId.toString();
+        const tableIdStr = booking.tableId.toString();
+
         // Notify restaurant staff
-        io.to(`restro_staff_${booking.restaurantId}`).emit('booking:cancelled', {
+        io.to(`restro_staff_${restroIdStr}`).emit('booking:cancelled', {
             bookingId: booking._id,
-            tableId: booking.tableId,
+            tableId: tableIdStr,
             date: booking.date,
             startTime: booking.startTime
         });
 
         // Notify other customers viewing the same restaurant (table is now available)
-        io.to(`restro_public_${booking.restaurantId}`).emit('table:available', {
-            tableId: booking.tableId,
+        io.to(`restro_public_${restroIdStr}`).emit('table:available', {
+            tableId: tableIdStr,
             date: booking.date,
             startTime: booking.startTime,
             endTime: booking.endTime
@@ -225,5 +311,113 @@ export const cancelBooking = async (req, res) => {
         res.status(200).json({ success: true, message: "Booking cancelled" });
     } catch (error) {
         res.status(500).json({ success: false, message: "Failed to cancel booking", error: error.message });
+    }
+};
+
+// Lock Table (Concurrency)
+export const lockTable = async (req, res) => {
+    try {
+        const { restaurantId, tableId, date, startTime } = req.body;
+        const userId = req.user._id;
+
+        if (!restaurantId || !tableId || !date || !startTime) {
+            return res.status(400).json({ success: false, message: "Missing required fields" });
+        }
+
+        // Check if already locked
+        const existingLock = await BookingLock.findOne({ restaurantId, tableId, date, startTime });
+        if (existingLock) {
+            if (existingLock.lockedBy.toString() === userId.toString()) {
+                return res.status(200).json({ success: true, message: "Already locked by you" });
+            }
+            return res.status(409).json({ success: false, message: "Table is currently selected by another user" });
+        }
+
+        // Create Lock
+        const start = new Date(`2000-01-01T${startTime}`);
+        const end = new Date(start.getTime() + 1 * 60 * 60 * 1000); // 1 hour lock
+        const endTime = end.toTimeString().slice(0, 5);
+
+        await BookingLock.create({
+            restaurantId,
+            tableId,
+            date,
+            startTime,
+            endTime,
+            lockedBy: userId
+        });
+
+        const restroIdStr = restaurantId.toString();
+        const tableIdStr = tableId.toString();
+
+        // Notify others
+        io.to(`restro_public_${restroIdStr}`).emit('table:locked', {
+            tableId: tableIdStr,
+            date,
+            startTime,
+            lockedBy: userId
+        });
+
+        // Set timeout to notify unlock (expires: 60s in Model)
+        setTimeout(async () => {
+            // Only emit unlock if the table was NOT booked in the meantime
+            const isBooked = await Booking.findOne({
+                restaurantId,
+                tableId,
+                date,
+                status: { $in: ['confirmed', 'grace'] }, // Ignore cancelled bookings!
+                // Match overlapping slots
+                $or: [
+                    { startTime: { $lt: endTime }, endTime: { $gt: startTime } }
+                ]
+            });
+
+            if (!isBooked) {
+                io.to(`restro_public_${restroIdStr}`).emit('table:unlocked', {
+                    tableId: tableIdStr,
+                    date,
+                    startTime
+                });
+            }
+        }, 60000); // 60 seconds matches TTL
+
+        res.status(201).json({ success: true, message: "Table locked" });
+    } catch (error) {
+        if (error.code === 11000) {
+            return res.status(409).json({ success: false, message: "Table is currently selected by another user" });
+        }
+        res.status(500).json({ success: false, message: "Failed to lock table", error: error.message });
+    }
+};
+
+// Unlock Table
+export const unlockTable = async (req, res) => {
+    try {
+        const { restaurantId, tableId, date, startTime } = req.body;
+        const userId = req.user._id;
+
+        const result = await BookingLock.deleteOne({
+            restaurantId,
+            tableId,
+            date,
+            startTime,
+            lockedBy: userId
+        });
+
+        if (result.deletedCount > 0) {
+            const restroIdStr = restaurantId.toString();
+            // Notify others
+            io.to(`restro_public_${restroIdStr}`).emit('table:unlocked', {
+                tableId: tableId.toString(), // tableId is likely ObjectId
+                date,
+                startTime
+            });
+            res.status(200).json({ success: true, message: "Table unlocked" });
+        } else {
+            res.status(200).json({ success: false, message: "Lock not found or not owned by you" });
+        }
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Failed to unlock table", error: error.message });
     }
 };

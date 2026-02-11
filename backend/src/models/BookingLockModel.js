@@ -29,7 +29,7 @@ const BookingLockSchema = new mongoose.Schema({
     createdAt: {
         type: Date,
         default: Date.now,
-        expires: 30, // Auto-delete after 30 seconds (prevents orphaned locks)
+        expires: 60, // Auto-delete after 60 seconds (prevents orphaned locks)
     },
 });
 

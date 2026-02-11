@@ -8,11 +8,13 @@ import { Loader2, MapPin, Star, Calendar, Clock, Users, X, Check, ChevronLeft, I
 import Navbar from "@/components/Navbar";
 import useBookingsStore from "@/store/useBookingsStore";
 import useRestaurantsListStore from "@/store/useRestaurantsListStore";
+import useAuthStore from "@/store/useAuthStore";
 import socketService from "@/services/socketService";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") + "/api";
 
 const BookingModal = React.memo(({ restaurant, onClose }) => {
+    const { user } = useAuthStore();
     const [selectedDate, setSelectedDate] = useState("today");
     const [selectedTime, setSelectedTime] = useState("");
     const [selectedTables, setSelectedTables] = useState([]);
@@ -59,6 +61,69 @@ const BookingModal = React.memo(({ restaurant, onClose }) => {
         return allSlots;
     }, [selectedDate]);
 
+    const [lockedTables, setLockedTables] = useState([]); // Tables locked by OTHERS
+    const [timeLeft, setTimeLeft] = useState(60); // 60s timer for MY selection
+
+    // Timer Logic
+    useEffect(() => {
+        let timer;
+        if (selectedTables.length > 0) {
+            timer = setInterval(() => {
+                setTimeLeft((prev) => {
+                    if (prev <= 1) {
+                        // Time expired
+                        clearInterval(timer);
+                        handleTimeExpired();
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        } else {
+            setTimeLeft(60); // Reset when no tables selected
+        }
+        return () => clearInterval(timer);
+    }, [selectedTables]);
+
+    const handleTimeExpired = async () => {
+        // Auto unlock all selected tables
+        const dateObj = dateOptions.find(d => d.id === selectedDate);
+        setError("Time expired! Your selection has been released.");
+        setTimeout(() => setError(null), 3000);
+
+        const tablesToUnlock = [...selectedTables];
+        setSelectedTables([]); // Clear UI immediately
+
+        // Server cleanup
+        try {
+            await Promise.all(tablesToUnlock.map(tableId =>
+                axios.post(`${API_URL}/bookings/unlock`, {
+                    restaurantId: restaurant._id,
+                    tableId,
+                    date: dateObj.date,
+                    startTime: selectedTime
+                }, { withCredentials: true })
+            ));
+        } catch (e) { console.error(e); }
+    };
+
+    const handleClose = async () => {
+        if (selectedTables.length > 0 && selectedDate && selectedTime) {
+            const dateObj = dateOptions.find(d => d.id === selectedDate);
+            try {
+                await Promise.all(selectedTables.map(tableId =>
+                    axios.post(`${API_URL}/bookings/unlock`, {
+                        restaurantId: restaurant._id,
+                        tableId,
+                        date: dateObj.date,
+                        startTime: selectedTime
+                    }, { withCredentials: true })
+                ));
+            } catch (e) { console.error("Unlock on close failed", e); }
+        }
+        onClose();
+    };
+
     // Socket.IO connection for real-time updates
     useEffect(() => {
         // Connect to socket and join restaurant room
@@ -67,44 +132,99 @@ const BookingModal = React.memo(({ restaurant, onClose }) => {
 
         // Listen for table availability changes
         const handleTableUnavailable = (data) => {
-            const { tableId, date, startTime, endTime } = data;
+            const { tableId, date, startTime } = data;
             const selectedDateObj = dateOptions.find(d => d.id === selectedDate);
 
             // If the unavailable table matches current selection, update booked tables
             if (selectedDateObj && date === selectedDateObj.date && startTime === selectedTime) {
-                setBookedTables(prev => [...prev, tableId]);
+                setBookedTables(prev => {
+                    if (!prev.includes(tableId)) return [...prev, tableId];
+                    return prev;
+                });
 
-                // Remove from selected tables if it was selected
-                setSelectedTables(prev => prev.filter(id => id !== tableId));
+                // Remove from selected tables if it was selected by ME
+                // Note: If I am the one who locked it, I shouldn't remove it from my selection?
+                // Actually, table:unavailable is for confirmed bookings usually.
 
-                // Show notification
-                setError(`Table just became unavailable. Please select another table.`);
-                setTimeout(() => setError(null), 3000);
+                setSelectedTables(prev => {
+                    if (prev.includes(tableId)) {
+                        // Optimistic removal or double check?
+                        // If I just booked it, I will be redirected.
+                        return prev.filter(id => id !== tableId);
+                    }
+                    return prev;
+                });
+            }
+        };
+
+        const handleTableLocked = (data) => {
+            const { tableId, date, startTime, lockedBy } = data; // lockedBy passed from backend
+            const selectedDateObj = dateOptions.find(d => d.id === selectedDate);
+
+            if (selectedDateObj && date === selectedDateObj.date && startTime === selectedTime) {
+                // If NOT locked by me (we don't get user ID here easily to check "me",
+                // but "lockedTables" is specifically for visualizing OTHERS' locks)
+                // If I have it in "selectedTables", I assume I own the lock.
+                // Ideally backend sends my userId back in "lockTable" response to confirm ownership,
+                // or we check against known user ID.
+                // Simple verification: If it's in my "selectedTables", ignore the lock event visually (or I see myself as locked?)
+                // Actually, showing "Locked" for myself is confusing.
+                // Frontend logic: Button is green (Selected) for me, Gray (Locked) for others.
+
+                if (lockedBy && user && lockedBy === user._id) {
+                    return; // Verify it is mine
+                }
+
+                setLockedTables(prev => {
+                    if (!prev.includes(tableId)) return [...prev, tableId];
+                    return prev;
+                });
+            }
+        };
+
+        const handleTableUnlocked = (data) => {
+            const { tableId, date, startTime } = data;
+            const selectedDateObj = dateOptions.find(d => d.id === selectedDate);
+
+            if (selectedDateObj && date === selectedDateObj.date && startTime === selectedTime) {
+                setLockedTables(prev => prev.filter(id => id !== tableId));
             }
         };
 
         const handleTableAvailable = (data) => {
+            console.log("Socket: table:available event received:", data);
             const { tableId, date, startTime } = data;
             const selectedDateObj = dateOptions.find(d => d.id === selectedDate);
 
-            // If the available table matches current selection, update booked tables
             if (selectedDateObj && date === selectedDateObj.date && startTime === selectedTime) {
-                setBookedTables(prev => prev.filter(id => id !== tableId));
+                // Table became free (cancelled booking)
+                console.log("Refreshing tables due to cancellation...");
+                fetchBookedTables();
             }
         };
 
         socketService.onTableUnavailable(handleTableUnavailable);
+        socketService.onTableLocked(handleTableLocked);
+        socketService.onTableUnlocked(handleTableUnlocked);
         socketService.onTableAvailable(handleTableAvailable);
 
         return () => {
             socketService.offTableUnavailable(handleTableUnavailable);
+            socketService.offTableLocked(handleTableLocked);
+            socketService.offTableUnlocked(handleTableUnlocked);
             socketService.offTableAvailable(handleTableAvailable);
         };
-    }, [restaurant._id, selectedDate, selectedTime]);
+    }, [restaurant._id, selectedDate, selectedTime, user]); // Added user dependency
 
     useEffect(() => {
         if (selectedDate && selectedTime) {
+            // Reset timer when slot changes
+            setTimeLeft(60);
+            setSelectedTables([]);
             fetchBookedTables();
+        } else {
+            setBookedTables([]);
+            setLockedTables([]);
         }
     }, [selectedDate, selectedTime]);
 
@@ -120,22 +240,63 @@ const BookingModal = React.memo(({ restaurant, onClose }) => {
                 withCredentials: true
             });
 
-            const booked = response.data.bookings?.map(b => b.tableId) || [];
-            setBookedTables(booked);
+            // "bookings" now includes both confirmed and locked tables
+            // Filter out MY locks from "busy" list so I can still see them as selected
+            const allBusy = response.data.bookings?.filter(b => {
+                if (b.status === 'locked' && b.lockedBy === user?._id) return false;
+                return true;
+            }).map(b => b.tableId) || [];
+
+            // Separate logic if we wanted, but for "disabled" state, merged list is fine
+            // However, we want to distinguish "Booked" vs "Locked by someone else" vs "Selected by me"
+            // For simplicity, let's treat all server-returned busy tables as "bookedTables" for disabling
+            setBookedTables(allBusy);
+            setLockedTables([]); // Reset local tracking as full fetch covers it
         } catch (err) {
             console.error("Error fetching booked tables:", err);
             setBookedTables([]);
         }
     };
 
-    const toggleTable = (tableId) => {
-        if (bookedTables.includes(tableId)) return;
+    const toggleTable = async (tableId) => {
+        if (bookedTables.includes(tableId) || lockedTables.includes(tableId)) return;
 
-        setSelectedTables(prev =>
-            prev.includes(tableId)
-                ? prev.filter(id => id !== tableId)
-                : [...prev, tableId]
-        );
+        const isSelected = selectedTables.includes(tableId);
+        const dateObj = dateOptions.find(d => d.id === selectedDate);
+
+        if (isSelected) {
+            // DESELECT -> Unlock
+            try {
+                setSelectedTables(prev => prev.filter(id => id !== tableId));
+                await axios.post(`${API_URL}/bookings/unlock`, {
+                    restaurantId: restaurant._id,
+                    tableId,
+                    date: dateObj.date,
+                    startTime: selectedTime
+                }, { withCredentials: true });
+            } catch (err) {
+                console.error("Unlock failed", err);
+            }
+        } else {
+            // SELECT -> Lock
+            try {
+                // Optimistic update
+                setSelectedTables(prev => [...prev, tableId]);
+
+                await axios.post(`${API_URL}/bookings/lock`, {
+                    restaurantId: restaurant._id,
+                    tableId,
+                    date: dateObj.date,
+                    startTime: selectedTime
+                }, { withCredentials: true });
+            } catch (err) {
+                // Lock failed (conflict)
+                console.error("Lock failed", err);
+                setSelectedTables(prev => prev.filter(id => id !== tableId)); // Revert
+                alert("This table was just selected by someone else.");
+                setLockedTables(prev => [...prev, tableId]);
+            }
+        }
     };
 
     const getTotalCapacity = () => {
@@ -205,7 +366,7 @@ const BookingModal = React.memo(({ restaurant, onClose }) => {
                     {/* Header */}
                     <div className="bg-indigo-600 text-white p-6 rounded-t-lg relative">
                         <button
-                            onClick={onClose}
+                            onClick={handleClose}
                             className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-lg transition-colors"
                         >
                             <X className="h-5 w-5" />
@@ -273,7 +434,14 @@ const BookingModal = React.memo(({ restaurant, onClose }) => {
                         {selectedDate && selectedTime && (
                             <div>
                                 <div className="flex items-center justify-between mb-3">
-                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Choose Tables</label>
+                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Choose Tables
+                                        {selectedTables.length > 0 && (
+                                            <span className="ml-2 text-red-600 dark:text-red-400 font-bold">
+                                                (Expires in 00:{timeLeft.toString().padStart(2, '0')})
+                                            </span>
+                                        )}
+                                    </label>
                                     {selectedTables.length > 0 && (
                                         <span className="text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-2 py-1 rounded-full font-medium">
                                             {getTotalCapacity()} seats
@@ -293,21 +461,26 @@ const BookingModal = React.memo(({ restaurant, onClose }) => {
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <div className="w-3 h-3 bg-gray-300 dark:bg-gray-600 rounded"></div>
-                                        <span>Booked</span>
+                                        <span>Booked/Busy</span>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
                                     {restaurant.tables.map((table) => {
+                                        // A table is disabled if it's already booked (from server) OR temporary lock (socket)
                                         const isBooked = bookedTables.includes(table._id);
+                                        const isLocked = lockedTables.includes(table._id);
                                         const isSelected = selectedTables.includes(table._id);
+
+                                        // Treat locked same as booked for interaction purposes
+                                        const isUnavailable = isBooked || isLocked;
 
                                         return (
                                             <button
                                                 key={table._id}
                                                 onClick={() => toggleTable(table._id)}
-                                                disabled={isBooked}
-                                                className={`relative p-4 rounded-lg border-2 transition-all ${isBooked
+                                                disabled={isUnavailable}
+                                                className={`relative p-4 rounded-lg border-2 transition-all ${isUnavailable
                                                     ? 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 cursor-not-allowed opacity-60'
                                                     : isSelected
                                                         ? 'bg-indigo-600 dark:bg-indigo-500 border-indigo-600 dark:border-indigo-500 text-white'
@@ -319,7 +492,7 @@ const BookingModal = React.memo(({ restaurant, onClose }) => {
                                                         <Check className="h-3 w-3 text-indigo-600" />
                                                     </div>
                                                 )}
-                                                {isBooked && (
+                                                {isUnavailable && (
                                                     <div className="absolute -top-1 -right-1 w-5 h-5 bg-gray-400 rounded-full flex items-center justify-center">
                                                         <X className="h-3 w-3 text-white" />
                                                     </div>

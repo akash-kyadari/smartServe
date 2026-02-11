@@ -6,6 +6,7 @@ class SocketService {
     constructor() {
         this.socket = null;
         this.connected = false;
+        this.currentRestroId = null; // Track current viewing room for reconnection
     }
 
     connect() {
@@ -23,6 +24,11 @@ class SocketService {
         this.socket.on('connect', () => {
             console.log('Socket connected:', this.socket.id);
             this.connected = true;
+
+            // Re-join active rooms on reconnect
+            if (this.currentRestroId) {
+                this.joinRestaurantRoom(this.currentRestroId);
+            }
         });
 
         this.socket.on('disconnect', () => {
@@ -42,12 +48,14 @@ class SocketService {
             this.socket.disconnect();
             this.socket = null;
             this.connected = false;
+            this.currentRestroId = null;
         }
     }
 
     // Join restaurant public room (for customers viewing restaurant)
     joinRestaurantRoom(restaurantId) {
         if (this.socket && restaurantId) {
+            this.currentRestroId = restaurantId;
             this.socket.emit('join_public_room', restaurantId);
             console.log(`Joined restaurant room: ${restaurantId}`);
         }
@@ -84,13 +92,34 @@ class SocketService {
 
     onTableUnavailable(callback) {
         if (this.socket) {
-            this.socket.on('table:unavailable', callback);
+            this.socket.on('table:unavailable', (data) => {
+                console.log("Socket: table:unavailable received", data);
+                callback(data);
+            });
         }
     }
 
     onTableAvailable(callback) {
         if (this.socket) {
             this.socket.on('table:available', callback);
+        }
+    }
+
+    onTableLocked(callback) {
+        if (this.socket) {
+            this.socket.on('table:locked', (data) => {
+                console.log("Socket: table:locked received", data);
+                callback(data);
+            });
+        }
+    }
+
+    onTableUnlocked(callback) {
+        if (this.socket) {
+            this.socket.on('table:unlocked', (data) => {
+                console.log("Socket: table:unlocked received", data);
+                callback(data);
+            });
         }
     }
 
@@ -116,6 +145,18 @@ class SocketService {
     offTableAvailable(callback) {
         if (this.socket) {
             this.socket.off('table:available', callback);
+        }
+    }
+
+    offTableLocked(callback) {
+        if (this.socket) {
+            this.socket.off('table:locked', callback);
+        }
+    }
+
+    offTableUnlocked(callback) {
+        if (this.socket) {
+            this.socket.off('table:unlocked', callback);
         }
     }
 
