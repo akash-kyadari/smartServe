@@ -54,18 +54,7 @@ export default function Navbar() {
                                     <Calendar className="inline h-4 w-4 mr-1" />
                                     My Bookings
                                 </Link>
-                                {user?.roles?.includes('owner') && (
-                                    <>
-                                        <Link href="/business/owner/bookings" className={`text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium text-sm transition-colors ${pathname.includes('/business/owner/bookings') ? 'text-primary font-bold' : ''}`}>
-                                            <Calendar className="inline h-4 w-4 mr-1" />
-                                            Business Bookings
-                                        </Link>
-                                        <Link href="/business/owner/staff" className={`text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium text-sm transition-colors ${pathname.includes('/business/owner/staff') ? 'text-primary font-bold' : ''}`}>
-                                            <User className="inline h-4 w-4 mr-1" />
-                                            Staff
-                                        </Link>
-                                    </>
-                                )}
+
                             </>
                         )}
 
@@ -128,18 +117,7 @@ export default function Navbar() {
                                         <Calendar className="inline h-4 w-4 mr-2" />
                                         My Bookings
                                     </Link>
-                                    {user?.roles?.includes('owner') && (
-                                        <>
-                                            <Link href="/business/owner/bookings" className="block px-3 py-3 rounded-md text-base font-medium text-gray-700 dark:text-gray-200 hover:text-gray-900 hover:bg-gray-50 dark:hover:bg-slate-900">
-                                                <Calendar className="inline h-4 w-4 mr-2" />
-                                                Business Bookings
-                                            </Link>
-                                            <Link href="/business/owner/staff" className="block px-3 py-3 rounded-md text-base font-medium text-gray-700 dark:text-gray-200 hover:text-gray-900 hover:bg-gray-50 dark:hover:bg-slate-900">
-                                                <User className="inline h-4 w-4 mr-2" />
-                                                Staff
-                                            </Link>
-                                        </>
-                                    )}
+
                                 </>
                             )}
 
