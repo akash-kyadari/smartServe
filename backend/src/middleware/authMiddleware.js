@@ -31,7 +31,6 @@ export const protect = async (req, res, next) => {
 };
 
 // Middleware to restrict access to specific roles
-// Middleware to restrict access to specific roles
 export const authorize = (...roles) => {
     return (req, res, next) => {
         // Validation: Ensure req.user and req.user.roles exist
@@ -48,4 +47,30 @@ export const authorize = (...roles) => {
         }
         next();
     };
+};
+
+export const optionalProtect = async (req, res, next) => {
+    try {
+        const token = req.cookies.jwt;
+
+        if (!token) {
+            return next(); // Proceed without user
+        }
+
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_secret_key");
+            req.user = await User.findById(decoded.id).select("-password");
+            // If user not found, just proceed without req.user
+            next();
+        } catch (error) {
+            // Token invalid or expired, proceed without user (treat as guest)
+            // Or should we fail? Usually optionalProtect means "if valid token use it, else ignore"
+            // If token is BAD, maybe we should ignore it.
+            console.error("Optional Protect: Token failed verification", error.message);
+            next();
+        }
+    } catch (error) {
+        console.error(error);
+        next();
+    }
 };

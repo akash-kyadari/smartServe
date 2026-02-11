@@ -3,7 +3,7 @@
 import React, { useState } from "react"; // Added useState
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, LayoutDashboard, UtensilsCrossed, Users, Settings, User, Menu, X, Monitor } from "lucide-react";
+import { LogOut, LayoutDashboard, UtensilsCrossed, Users, Settings, User, Menu, X, Monitor, Calendar } from "lucide-react";
 import useAuthStore from "@/store/useAuthStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
@@ -65,18 +65,17 @@ export default function BusinessNavbar({ currentRestaurant }) {
 
                     {/* Desktop Navigation */}
                     <div className="hidden lg:flex items-center gap-4">
+
+
                         {currentRestaurant && isOwner ? (
                             <nav className="flex items-center gap-1 text-sm font-medium text-muted-foreground mr-4">
                                 <NavLink href={`/business/owner/restros/${currentRestaurant._id}`} icon={LayoutDashboard} label="Dashboard" active={pathname === `/business/owner/restros/${currentRestaurant._id}`} />
+                                <NavLink href={`/business/owner/restros/${currentRestaurant._id}/bookings`} icon={Calendar} label="Bookings" active={pathname.includes('/bookings')} />
                                 <NavLink href={`/business/owner/restros/${currentRestaurant._id}/menu`} icon={UtensilsCrossed} label="Menu" active={pathname.includes('/menu')} />
                                 <NavLink href={`/business/owner/restros/${currentRestaurant._id}/staff`} icon={Users} label="Staff" active={pathname.includes('/staff')} />
                                 <NavLink href={`/business/owner/restros/${currentRestaurant._id}/settings`} icon={Settings} label="Settings" active={pathname.includes('/settings')} />
                             </nav>
-                        ) : (
-                            <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-muted-foreground mr-4">
-                                {/* Global business links if any */}
-                            </nav>
-                        )}
+                        ) : null}
 
                         <div className="flex items-center gap-3 pl-4 border-l border-gray-200 dark:border-slate-800">
                             <ThemeToggle />
@@ -201,10 +200,12 @@ export default function BusinessNavbar({ currentRestaurant }) {
 
                                 {/* Navigation Links Mobile */}
                                 <nav className="space-y-1">
+
                                     {currentRestaurant && isOwner ? (
                                         <>
                                             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2">Manage {currentRestaurant.name}</div>
                                             <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/owner/restros/${currentRestaurant._id}`} icon={LayoutDashboard} label="Dashboard" active={pathname === `/business/owner/restros/${currentRestaurant._id}`} />
+                                            <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/owner/restros/${currentRestaurant._id}/bookings`} icon={Calendar} label="Bookings" active={pathname.includes('/bookings')} />
                                             <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/owner/restros/${currentRestaurant._id}/menu`} icon={UtensilsCrossed} label="Menu Management" active={pathname.includes('/menu')} />
                                             <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/owner/restros/${currentRestaurant._id}/staff`} icon={Users} label="Staff & Shifts" active={pathname.includes('/staff')} />
                                             <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/owner/restros/${currentRestaurant._id}/settings`} icon={Settings} label="Settings" active={pathname.includes('/settings')} />

@@ -197,6 +197,47 @@ const useRestaurantStore = create((set, get) => ({
         }
     },
 
+    toggleStaffStatus: async (restaurantId, staffId, isActive) => {
+        set({ error: null });
+        try {
+            const res = await fetch(`${API_URL}/${restaurantId}/staff/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ staffId, active: isActive }),
+                credentials: 'include'
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.message || 'Failed to update status');
+            }
+
+            // Update local state
+            set((state) => ({
+                restaurants: state.restaurants.map(r => {
+                    if (r._id === restaurantId) {
+                        return {
+                            ...r,
+                            staff: (r.staff || []).map(s => {
+                                const sUserId = s.user?._id || s.user;
+                                if (sUserId === staffId) {
+                                    return { ...s, isActive: isActive }; // Optimistic update
+                                }
+                                return s;
+                            })
+                        };
+                    }
+                    return r;
+                })
+            }));
+
+            return data;
+        } catch (error) {
+            set({ error: error.message });
+            throw error;
+        }
+    },
+
     // Menu Actions
     addMenuItem: async (restaurantId, itemData) => {
         set({ isLoading: true, error: null });

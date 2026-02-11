@@ -11,7 +11,7 @@ import {
     toggleTableBill,
     getRestaurantAnalytics // Added import
 } from "../controllers/restaurantController.js";
-import { addStaff, removeStaff, getStaff, updateStaffPassword, toggleStaffStatus } from "../controllers/staffController.js";
+import { addStaff, removeStaff, getStaff, updateStaffPassword, toggleStaffStatus, getStaffAnalytics } from "../controllers/staffController.js";
 import { getMenuItems, addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability } from "../controllers/menuController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 
@@ -38,6 +38,7 @@ router.post("/:id/staff", protect, authorize('owner'), addStaff);
 router.delete("/:id/staff/:staffId", protect, authorize('owner'), removeStaff);
 router.put("/:id/staff/:staffId/password", protect, authorize('owner'), updateStaffPassword);
 router.put("/:id/staff/status", protect, authorize('owner', 'manager', 'waiter', 'kitchen'), toggleStaffStatus);
+router.get("/:id/staff/analytics", protect, authorize('owner', 'manager'), getStaffAnalytics);
 
 // Menu Routes
 router.get("/:restaurantId/menu", protect, authorize('owner', 'manager', 'waiter', 'kitchen'), getMenuItems);

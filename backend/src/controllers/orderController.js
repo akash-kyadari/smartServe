@@ -91,19 +91,30 @@ export const placeOrder = async (req, res) => {
         // ---------------------------------------------------------
         let assignedWaiterId = table.assignedWaiterId;
 
+        // Check if the Order is placed by a Logged-in Staff Member (Waiter/Manager)
+        let isStaffPlacement = false;
+        if (req.user) {
+            // req.user comes from optionalProtect middleware
+            const staffMember = restaurant.staff.find(s => s.user.toString() === req.user._id.toString());
+            if (staffMember) {
+                // The user is staff at this restaurant
+                if (['waiter', 'manager', 'owner'].includes(staffMember.role) || staffMember.role !== 'kitchen') {
+                    isStaffPlacement = true;
+                    assignedWaiterId = req.user._id; // Assign to SELF
+                    console.log(`[OrderPlacement] Order placed by Staff (${staffMember.role}): ${req.user.name}. Auto-assigning to self.`);
+                }
+            }
+        }
+
         // Get all active staff
         const activeStaff = restaurant.staff.filter(s => s.isActive);
         const activeWaiters = activeStaff.filter(s => s.role === 'waiter');
         const activeKitchen = activeStaff.filter(s => s.role === 'kitchen');
         const activeManagers = activeStaff.filter(s => s.role === 'manager');
-        const ownerOnline = true; // Owner is always considered "available" if we want, or we can check a status
 
         // Strict Check: Must have at least one active STAFF member (waiter, manager, or compatible) to accept orders
-        // User requested: "check for active waiters and then if available assign else show... not accepting"
-        // We will interpret this as: If NO active waiters AND NO active managers, we might reject. 
-        // But usually, if kitchen is missing, it's also a problem.
-
-        if (activeWaiters.length === 0) {
+        // UNLESS the order is being placed BY a staff member (who is obviously online/active)
+        if (activeWaiters.length === 0 && !isStaffPlacement) {
             return res.status(503).json({
                 message: "We are currently not accepting orders (No waiters available). Please try again later."
             });
@@ -130,11 +141,17 @@ export const placeOrder = async (req, res) => {
                 // Assign the one with least load
                 assignedWaiterId = waiterLoad[0].waiterId;
                 table.assignedWaiterId = assignedWaiterId;
+                console.log(`[OrderPlacement] Auto-assigned waiter: ${assignedWaiterId} (Load: ${waiterLoad[0].load})`);
+            } else {
+                console.warn("[OrderPlacement] No active waiters found even though check passed?");
             }
         }
 
         if (assignedWaiterId) {
             newOrder.waiterId = assignedWaiterId;
+            console.log(`[OrderPlacement] Order ${newOrder._id} assigned to Waiter ${assignedWaiterId}`);
+        } else {
+            console.warn(`[OrderPlacement] Order ${newOrder._id} created WITHOUT Waiter ID`);
         }
         // ---------------------------------------------------------
 
@@ -149,10 +166,13 @@ export const placeOrder = async (req, res) => {
         await newOrder.populate("waiterId", "name email");
 
         // SOCKET: Notify Kitchen/Staff
-        io.to(`restro_staff_${restaurantId.toString()}`).emit("new_order", newOrder);
+        const roomNameStaff = `restro_staff_${restaurantId}`;
+        const roomNameCustomer = `table_${restaurantId}_${tableId}`;
 
-        // SOCKET: Ack to Customer Room
-        io.to(`table_${restaurantId}_${tableId}`).emit("order_update", newOrder);
+        io.to(roomNameStaff).emit("new_order", newOrder);
+        io.to(roomNameCustomer).emit("order_update", newOrder);
+
+        console.log(`[OrderPlacement] Emitted 'new_order' to ${roomNameStaff}`);
 
         res.status(201).json({ message: "Order placed successfully", order: newOrder });
     } catch (error) {
@@ -180,8 +200,13 @@ export const updateOrderStatus = async (req, res) => {
         if (!order) return res.status(404).json({ message: "Order not found" });
 
         // SOCKET: Update Customer & Staff
-        io.to(`table_${order.restaurantId}_${order.tableId}`).emit("order_update", order);
-        io.to(`restro_staff_${order.restaurantId.toString()}`).emit("order_update", order);
+        const roomNameCustomer = `table_${order.restaurantId}_${order.tableId}`;
+        const roomNameStaff = `restro_staff_${order.restaurantId}`;
+
+        io.to(roomNameCustomer).emit("order_update", order);
+        io.to(roomNameStaff).emit("order_update", order);
+
+        console.log(`[OrderUpdate] Emitted to ${roomNameCustomer} and ${roomNameStaff}`);
 
         res.json({ message: "Order status updated", order });
     } catch (error) {

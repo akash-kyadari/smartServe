@@ -118,7 +118,7 @@ export default function CustomerPage() {
 
                 {/* --- Header --- */}
                 <header className="sticky top-0 z-50 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md shadow-sm border-b border-border px-4 py-3 flex items-center justify-between">
-                    <Link href="/" className="p-2 -ml-2 text-muted-foreground hover:text-foreground">
+                    <Link href="/business" className="p-2 -ml-2 text-muted-foreground hover:text-foreground">
                         <ArrowLeft size={20} />
                     </Link>
 

@@ -14,11 +14,15 @@ class SocketService {
             return this.socket;
         }
 
-        this.socket = io(SOCKET_URL, {
+        // Ensure we point to the correct Backend URL
+        const url_to_use = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5055';
+
+        this.socket = io(url_to_use, {
             transports: ['websocket', 'polling'],
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionAttempts: 5,
+            withCredentials: true // Important for cookies/cors if needed, though mostly for handshake
         });
 
         this.socket.on('connect', () => {

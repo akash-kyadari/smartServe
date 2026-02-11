@@ -94,7 +94,7 @@ export default function AdminLayout({ children }) {
                         <span className="text-xs font-semibold text-muted-foreground uppercase">Theme</span>
                         <ThemeToggle />
                     </div>
-                    <Link href="/" className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors">
+                    <Link href="/business" className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors">
                         <LogOut size={18} />
                         Exit Demo
                     </Link>

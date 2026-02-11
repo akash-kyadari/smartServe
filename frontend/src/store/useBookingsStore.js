@@ -101,9 +101,11 @@ const useBookingsStore = create((set, get) => ({
                 throw new Error('Failed to cancel booking');
             }
 
-            // Remove booking from store
+            // Update status to 'cancelled' instead of removing
             set((state) => ({
-                bookings: state.bookings.filter(b => b._id !== bookingId),
+                bookings: state.bookings.map(b =>
+                    b._id === bookingId ? { ...b, status: 'cancelled' } : b
+                ),
                 isLoading: false,
                 error: null,
             }));

@@ -62,7 +62,7 @@ export default function WaiterPage() {
                 {/* Header */}
                 <header className="bg-white/80 dark:bg-slate-950/80 backdrop-blur-md px-4 py-4 shadow-sm flex items-center justify-between sticky top-0 z-30 border-b border-border">
                     <div className="flex items-center gap-3">
-                        <Link href="/" className="p-2 -ml-2 text-muted-foreground hover:text-foreground">
+                        <Link href="/business" className="p-2 -ml-2 text-muted-foreground hover:text-foreground">
                             <ArrowLeft size={20} />
                         </Link>
                         <div>

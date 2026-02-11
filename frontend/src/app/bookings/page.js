@@ -56,7 +56,7 @@ export default function BookingsPage() {
 
     // Group bookings by restaurant, date, and time
     const groupedBookings = bookings.reduce((acc, booking) => {
-        const key = `${booking.restaurantId?._id}-${booking.date}-${booking.startTime}`;
+        const key = `${booking.restaurantId?._id}-${booking.date}-${booking.startTime}-${booking.status}`;
         if (!acc[key]) {
             acc[key] = {
                 ...booking,

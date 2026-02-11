@@ -1,5 +1,7 @@
 import User from "../models/UserModel.js";
 import Restaurant from "../models/RestaurantModel.js";
+import Order from "../models/OrderModel.js";
+import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import { io } from "../socket/socket.js";
 
@@ -255,5 +257,122 @@ export const toggleStaffStatus = async (req, res) => {
     } catch (error) {
         console.error("Error toggling staff status:", error);
         res.status(500).json({ message: "Server Error", error: error.message });
+    }
+};
+
+// Get detailed analytics for all staff members
+// Get detailed analytics for all staff members
+// Get detailed analytics for all staff members
+export const getStaffAnalytics = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const restaurant = await Restaurant.findById(id).populate({
+            path: 'staff.user',
+            select: 'name email avatar'
+        });
+
+        if (!restaurant) {
+            return res.status(404).json({ success: false, message: "Restaurant not found" });
+        }
+
+        // 1. Get Today's Date Range (Local Server Time)
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date();
+        endOfDay.setHours(23, 59, 59, 999);
+
+        // 2. Fetch orders using Find (safer than Aggregate for IDs)
+        // Mongoose automatically casts string ID to ObjectId for 'find'
+        const restroIdObj = new mongoose.Types.ObjectId(id);
+
+        console.log(`[StaffAnalytics] 🟢 Fetching orders for Restro: ${id}`);
+
+        // Fetch ALL valid orders for today
+        const orders = await Order.find({
+            restaurantId: restroIdObj,
+            createdAt: { $gte: startOfDay, $lte: endOfDay },
+            status: { $ne: 'CANCELLED' }
+        }).lean();
+
+        console.log(`[StaffAnalytics] Found ${orders.length} orders to process.`);
+
+        // 3. Robust Aggregation
+        const statsMap = {}; // waiterId -> { ordersCount, totalSales }
+
+        orders.forEach(order => {
+            let responsibleWaiterId = null;
+
+            if (order.waiterId) {
+                responsibleWaiterId = order.waiterId.toString();
+            }
+
+            if (responsibleWaiterId) {
+                if (!statsMap[responsibleWaiterId]) {
+                    statsMap[responsibleWaiterId] = { ordersCount: 0, totalSales: 0 };
+                }
+                statsMap[responsibleWaiterId].ordersCount += 1;
+                statsMap[responsibleWaiterId].totalSales += (order.totalAmount || 0);
+            } else {
+                console.log(`[StaffAnalytics] ⚠️ Order ${order._id} has NO waiter assigned.`);
+            }
+        });
+
+        console.log(`[StaffAnalytics] 📊 Stats Map Keys:`, Object.keys(statsMap));
+
+        let totalStaff = 0;
+        let activeStaff = 0;
+        let totalActiveTables = 0;
+        let todaySales = 0;
+
+        // 4. Combine with Staff Data
+        const staffPerformance = restaurant.staff.map(member => {
+            if (!member.user) return null;
+
+            const userId = member.user._id.toString();
+            totalStaff++;
+            if (member.isActive) activeStaff++;
+
+            // Stats
+            const memberStats = statsMap[userId] || { ordersCount: 0, totalSales: 0 };
+            console.log(`[StaffAnalytics] 👤 Staff: ${member.user.name} (ID: ${userId}) -> Stats Found: ${!!statsMap[userId]} (Orders: ${memberStats.ordersCount})`);
+
+            todaySales += memberStats.totalSales;
+
+            // Calculate Active Tables
+            const memberActiveTables = restaurant.tables.filter(t =>
+                t.assignedWaiterId && t.assignedWaiterId.toString() === userId && t.isOccupied
+            ).length;
+
+            totalActiveTables += memberActiveTables;
+
+            return {
+                staffId: userId,
+                name: member.user.name,
+                email: member.user.email,
+                role: member.role,
+                isActive: member.isActive,
+                avatar: member.user.avatar,
+                // Analytics
+                activeTables: memberActiveTables,
+                todayOrders: memberStats.ordersCount,
+                todaySales: memberStats.totalSales
+            };
+        }).filter(Boolean);
+
+        // Debug Log
+        // console.log("[StaffAnalytics] Partial Stats Map:", statsMap);
+
+        res.status(200).json({
+            success: true,
+            totalStaff,
+            activeStaff,
+            activeTables: totalActiveTables,
+            todaySales,
+            staffPerformance
+        });
+
+    } catch (error) {
+        console.error("Error fetching staff analytics:", error);
+        res.status(500).json({ success: false, message: "Error fetching staff analytics", error: error.message });
     }
 };

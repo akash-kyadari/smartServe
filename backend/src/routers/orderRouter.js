@@ -1,6 +1,6 @@
 import express from "express";
 import { placeOrder, updateOrderStatus, freeTable, getTableOrders, getRestaurantActiveOrders, markTableAsPaid } from "../controllers/orderController.js";
-import { protect, authorize } from "../middleware/authMiddleware.js";
+import { protect, authorize, optionalProtect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -11,7 +11,7 @@ router.put("/table/:tableId/pay", protect, authorize('owner', 'manager', 'waiter
 router.post("/free-table", protect, authorize('owner', 'manager', 'waiter'), freeTable);
 
 // Customer Routes
-router.post("/place", placeOrder);
+router.post("/place", optionalProtect, placeOrder);
 // Generic parameterized route must be LAST
 router.get("/:restaurantId/:tableId", getTableOrders);
 
