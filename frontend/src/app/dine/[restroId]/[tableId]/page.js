@@ -120,9 +120,10 @@ export default function TablePage({ params }) {
             // Session Ended by Waiter
             setSessionEnded(true);
             setIsSessionStarted(false);
-            localStorage.removeItem("customerName");
-            localStorage.removeItem("customerPhone");
-            localStorage.removeItem("cart");
+            // Do NOT remove customer details so they persist for next time
+            // localStorage.removeItem("customerName");
+            // localStorage.removeItem("customerPhone");
+            localStorage.removeItem("cart"); // Cart should probably be cleared though
             setActiveOrders([]);
             setTable(prev => ({ ...prev, isOccupied: false }));
             setCart({});

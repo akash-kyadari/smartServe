@@ -579,7 +579,7 @@ export default function StaffPage() {
                     <section>
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                             <Users size={20} className="text-blue-500" />
-                            Wait Staff
+                            Waiter Staff
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             <AnimatePresence>
