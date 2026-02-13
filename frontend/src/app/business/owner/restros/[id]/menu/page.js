@@ -224,7 +224,7 @@ export default function MenuPage() {
                 </div>
             </div>
 
-            {/* Menu Items Grid */}
+            {/* Menu Items List */}
             {filteredItems.length === 0 ? (
                 <div className="text-center py-12 bg-card rounded-xl border border-dashed border-border">
                     <p className="text-muted-foreground">
@@ -232,81 +232,67 @@ export default function MenuPage() {
                     </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-3">
                     {filteredItems.map((item) => (
                         <motion.div
                             key={item._id}
-                            initial={{ opacity: 0, y: 20 }}
+                            initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="bg-card border border-border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                            className="bg-card border border-border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow flex items-center p-3 gap-4"
                         >
                             {/* Image Placeholder */}
-                            <div className="h-40 bg-secondary flex items-center justify-center">
+                            <div className="h-16 w-16 bg-secondary flex-shrink-0 rounded-md overflow-hidden flex items-center justify-center">
                                 {item.image ? (
                                     <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                                 ) : (
-                                    <span className="text-muted-foreground text-sm">No Image</span>
+                                    <span className="text-muted-foreground text-[10px]">No Img</span>
                                 )}
                             </div>
 
                             {/* Content */}
-                            <div className="p-4">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="flex-1">
-                                        <h3 className="font-bold text-foreground">{item.name}</h3>
-                                        <p className="text-xs text-muted-foreground">{item.category || "Uncategorized"}</p>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className={`w-3.5 h-3.5 border flex items-center justify-center rounded-[3px] ${item.isVeg ? 'border-green-600' : 'border-red-600'}`}>
+                                            <div className={`w-1.5 h-1.5 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-600'}`} />
+                                        </div>
+                                        <h3 className="font-semibold text-foreground truncate">{item.name}</h3>
                                     </div>
-                                    <div className="flex gap-1">
-                                        {item.isVeg !== undefined && (
-                                            <span className={`w-5 h-5 border-2 flex items-center justify-center ${item.isVeg ? 'border-green-600' : 'border-red-600'
-                                                }`}>
-                                                <span className={`w-2 h-2 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-600'
-                                                    }`}></span>
-                                            </span>
-                                        )}
-                                    </div>
+                                    <span className="text-xs px-2 py-0.5 bg-secondary rounded-full text-muted-foreground whitespace-nowrap">
+                                        {item.category || "Uncategorized"}
+                                    </span>
                                 </div>
 
-                                {item.description && (
-                                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{item.description}</p>
-                                )}
+                                <p className="text-xs text-muted-foreground line-clamp-1 truncate">{item.description}</p>
+                            </div>
 
-                                <div className="flex items-center justify-between pt-3 border-t border-border">
-                                    <div className="flex items-center gap-1 text-sunset font-bold">
-                                        <DollarSign size={16} />
-                                        ₹{item.price}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className={`text-xs font-medium ${item.isAvailable ? 'text-green-600' : 'text-gray-500'}`}>
-                                            {item.isAvailable ? 'In Stock' : 'Out of Stock'}
-                                        </span>
-                                        <button
-                                            onClick={() => handleToggleAvailability(item._id)}
-                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sunset focus:ring-offset-2 ${item.isAvailable ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
-                                                }`}
-                                        >
-                                            <span
-                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${item.isAvailable ? 'translate-x-6' : 'translate-x-1'
-                                                    }`}
-                                            />
-                                        </button>
-                                    </div>
+                            {/* Actions & Price */}
+                            <div className="flex items-center gap-6">
+                                <div className="text-sm font-bold text-foreground">₹{item.price}</div>
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => handleToggleAvailability(item._id)}
+                                        className={`w-8 h-5 rounded-full relative transition-colors ${item.isAvailable ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                                    >
+                                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${item.isAvailable ? 'translate-x-3' : 'translate-x-0'}`} />
+                                    </button>
                                 </div>
 
-                                <div className="flex gap-2 mt-3">
+                                <div className="flex gap-1">
                                     <button
                                         onClick={() => handleEdit(item)}
-                                        className="flex-1 p-2 hover:bg-secondary rounded-lg transition-colors text-muted-foreground hover:text-foreground flex items-center justify-center gap-1"
+                                        className="p-1.5 hover:bg-secondary rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                                        title="Edit"
                                     >
                                         <Edit size={16} />
-                                        <span className="text-sm">Edit</span>
                                     </button>
                                     <button
                                         onClick={() => handleDelete(item._id)}
-                                        className="flex-1 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-muted-foreground hover:text-red-500 flex items-center justify-center gap-1"
+                                        className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md text-muted-foreground hover:text-red-500 transition-colors"
+                                        title="Delete"
                                     >
                                         <Trash2 size={16} />
-                                        <span className="text-sm">Delete</span>
                                     </button>
                                 </div>
                             </div>

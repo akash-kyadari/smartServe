@@ -6,9 +6,11 @@ import useRestaurantStore from "@/store/useRestaurantStore";
 import useAuthStore from "@/store/useAuthStore";
 import {
     Save, MapPin, Phone, Mail, Clock, LayoutGrid,
-    CreditCard, Power, ShieldCheck, Loader2, Users, Plus, Trash2, Armchair
+    CreditCard, Power, ShieldCheck, Loader2, Users, Plus, Trash2, Armchair,
+    QrCode, X // Added QrCode and X
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion"; // Ensure AnimatePresence is imported
+import { QRCodeSVG } from "qrcode.react"; // Import QRCodeSVG
 
 export default function SettingsPage() {
     const params = useParams();
@@ -38,9 +40,12 @@ export default function SettingsPage() {
         allowQROrdering: true,
         acceptsOnline: true,
         acceptsCash: true,
+        locationUrl: "", // Added locationUrl
+        coverImage: "", // Added coverImage
     });
 
     const [tables, setTables] = useState([]);
+    const [selectedQR, setSelectedQR] = useState(null); // State for QR Code Modal
 
     useEffect(() => {
         if (!restaurant && restaurants.length === 0) {
@@ -64,6 +69,8 @@ export default function SettingsPage() {
                 allowQROrdering: restaurant.settings?.allowQROrdering !== undefined ? restaurant.settings.allowQROrdering : true,
                 acceptsOnline: restaurant.paymentSettings?.acceptsOnline !== undefined ? restaurant.paymentSettings.acceptsOnline : true,
                 acceptsCash: restaurant.paymentSettings?.acceptsCash !== undefined ? restaurant.paymentSettings.acceptsCash : true,
+                locationUrl: restaurant.address?.locationUrl || "",
+                coverImage: restaurant.coverImage || "",
             });
             setTables(restaurant.tables || []);
         }
@@ -119,6 +126,7 @@ export default function SettingsPage() {
                 city: formData.city,
                 state: formData.state,
                 pincode: formData.pincode,
+                locationUrl: formData.locationUrl, // Added
                 country: "India"
             },
             openingHours: {
@@ -127,6 +135,7 @@ export default function SettingsPage() {
                 daysOpen: restaurant?.openingHours?.daysOpen || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
             },
             isAC: formData.isAC,
+            coverImage: formData.coverImage,
             isActive: formData.isActive,
             settings: {
                 allowTableBooking: formData.allowTableBooking,
@@ -205,6 +214,47 @@ export default function SettingsPage() {
                 </motion.div>
             )}
 
+            {/* Restaurant DP & Basic Info Horizontal Section */}
+            <div className="bg-card text-card-foreground p-6 rounded-xl border border-border shadow-sm flex flex-col md:flex-row items-center gap-8">
+                {/* Image Preview */}
+                <div className="relative group shrink-0">
+                    <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-secondary shadow-md bg-secondary flex items-center justify-center">
+                        {formData.coverImage ? (
+                            <img src={formData.coverImage} alt="Restaurant Cover" className="w-full h-full object-cover" />
+                        ) : (
+                            <LayoutGrid size={40} className="text-muted-foreground opacity-50" />
+                        )}
+                    </div>
+                </div>
+
+                {/* Basic Info Fields */}
+                <div className="flex-1 w-full space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                            <label className="text-sm font-medium mb-1 block">Restaurant Name</label>
+                            <input
+                                name="name"
+                                value={formData.name}
+                                onChange={handleChange}
+                                className="w-full bg-secondary/50 border border-transparent focus:border-sunset rounded-lg px-4 py-2 text-lg font-bold focus:outline-none transition-colors"
+                                placeholder="Restaurant Name"
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="text-sm font-medium mb-1 block">Cover Image URL</label>
+                            <input
+                                name="coverImage"
+                                value={formData.coverImage}
+                                onChange={handleChange}
+                                className="w-full bg-secondary/50 border border-transparent focus:border-sunset rounded-lg px-4 py-2 text-sm focus:outline-none transition-colors"
+                                placeholder="https://example.com/image.jpg"
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">Provide a direct URL to your restaurant's cover image/logo.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* General Information */}
                 <div className="bg-card text-card-foreground p-6 rounded-xl border border-border shadow-sm space-y-4">
@@ -213,15 +263,6 @@ export default function SettingsPage() {
                     </h3>
 
                     <div className="space-y-3">
-                        <div>
-                            <label className="text-sm font-medium mb-1 block">Restaurant Name</label>
-                            <input
-                                name="name"
-                                value={formData.name}
-                                onChange={handleChange}
-                                className="w-full bg-secondary/50 border border-transparent focus:border-sunset rounded-lg px-4 py-2 text-sm focus:outline-none transition-colors"
-                            />
-                        </div>
                         <div>
                             <label className="text-sm font-medium mb-1 block">Description</label>
                             <textarea
@@ -303,6 +344,16 @@ export default function SettingsPage() {
                                 value={formData.pincode}
                                 onChange={handleChange}
                                 className="w-full bg-secondary/50 border border-transparent focus:border-sunset rounded-lg px-4 py-2 text-sm focus:outline-none transition-colors"
+                            />
+                        </div>
+                        <div className="col-span-2">
+                            <label className="text-sm font-medium mb-1 block flex items-center gap-1"><MapPin size={12} /> Google Maps Link</label>
+                            <input
+                                name="locationUrl"
+                                value={formData.locationUrl}
+                                onChange={handleChange}
+                                className="w-full bg-secondary/50 border border-transparent focus:border-sunset rounded-lg px-4 py-2 text-sm focus:outline-none transition-colors"
+                                placeholder="https://maps.google.com/..."
                             />
                         </div>
                     </div>
@@ -449,8 +500,19 @@ export default function SettingsPage() {
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                             {tables.map((table, index) => (
                                 <div key={index} className="bg-secondary/30 p-4 rounded-xl border border-transparent hover:border-sunset/50 transition-all group">
-                                    <div className="flex flex-col items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center shadow-sm text-muted-foreground group-hover:text-sunset transition-colors">
+                                    <div className="flex flex-col items-center gap-3 relative">
+                                        {/* QR Code Button */}
+                                        {table._id && (
+                                            <button
+                                                onClick={() => setSelectedQR(table)}
+                                                className="absolute top-0 right-0 p-1.5 text-black hover:text-indigo-600 bg-white/60 hover:bg-white rounded-lg shadow-sm backdrop-blur-sm transition-all"
+                                                title="View QR Code"
+                                            >
+                                                <QrCode size={16} />
+                                            </button>
+                                        )}
+
+                                        <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center shadow-sm text-muted-foreground group-hover:text-sunset transition-colors mt-2">
                                             <span className="font-bold text-sm">T{table.tableNumber}</span>
                                         </div>
 
@@ -474,6 +536,73 @@ export default function SettingsPage() {
                     )}
                 </div>
             </div>
+            {/* QR Code Modal */}
+            <AnimatePresence>
+                {selectedQR && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                        onClick={() => setSelectedQR(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl max-w-sm w-full relative flex flex-col items-center text-center space-y-6"
+                        >
+                            <button
+                                onClick={() => setSelectedQR(null)}
+                                className="absolute top-4 right-4 p-2 bg-gray-100 dark:bg-gray-700 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                            >
+                                <X size={20} className="text-gray-600 dark:text-gray-300" />
+                            </button>
+
+                            <div>
+                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+                                    Table {selectedQR.tableNumber}
+                                </h3>
+                                <p className="text-gray-500 dark:text-gray-400 text-sm">Scan to start dining session</p>
+                            </div>
+
+                            <div className="bg-white p-4 rounded-xl shadow-inner border border-gray-100">
+                                <QRCodeSVG
+                                    value={`${window.location.origin}/dine/${params.id}/${selectedQR._id}`}
+                                    size={200}
+                                    level="H"
+                                    includeMargin={true}
+                                />
+                            </div>
+
+                            <div className="w-full bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-100 dark:border-gray-700">
+                                <p className="text-xs text-gray-500 break-all font-mono select-all">
+                                    {`${window.location.origin}/dine/${params.id}/${selectedQR._id}`}
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    // Simple print logic or just utilize browser print
+                                    const printWindow = window.open('', '', 'height=600,width=600');
+                                    printWindow.document.write('<html><body style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">');
+                                    printWindow.document.write(`<h1>${restaurant?.name || 'Restaurant'}</h1>`);
+                                    printWindow.document.write(`<h2>Table ${selectedQR.tableNumber}</h2>`);
+                                    printWindow.document.write(document.querySelector('svg').outerHTML); // Grab the SVG
+                                    printWindow.document.write(`<p>Scan to Order</p>`);
+                                    printWindow.document.write('</body></html>');
+                                    printWindow.document.close();
+                                    printWindow.print();
+                                }}
+                                className="w-full py-2 bg-black dark:bg-white text-white dark:text-black rounded-lg font-medium hover:opacity-90 transition-opacity"
+                            >
+                                Print QR Code
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

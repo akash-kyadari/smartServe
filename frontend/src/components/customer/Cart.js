@@ -38,24 +38,24 @@ export default function Cart({ items, updateQuantity, handlePlaceOrder, onClear,
                         initial={{ y: 100, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: 100, opacity: 0 }}
-                        className="fixed bottom-6 left-4 right-4 z-50"
+                        className="fixed bottom-4 left-3 right-3 z-50"
                     >
                         <button
                             onClick={() => setIsOpen(true)}
-                            className="w-full bg-primary text-primary-foreground shadow-xl shadow-primary/30 rounded-2xl p-4 flex items-center justify-between hover:bg-primary/90 transition-transform active:scale-[0.98] group"
+                            className="w-full bg-primary text-primary-foreground shadow-xl shadow-primary/30 rounded-2xl p-3 flex items-center justify-between hover:bg-primary/90 transition-transform active:scale-[0.98] group"
                         >
-                            <div className="flex items-center gap-3">
-                                <div className="bg-white/20 font-bold w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-white/20 font-bold w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm text-sm">
                                     {count}
                                 </div>
-                                <div className="flex flex-col items-start">
-                                    <span className="font-bold text-base">View Cart</span>
-                                    <span className="text-xs opacity-80 font-medium uppercase tracking-wide">Checkout</span>
+                                <div className="flex flex-col items-start leading-none">
+                                    <span className="font-bold text-sm">View Cart</span>
+                                    <span className="text-[10px] opacity-80 font-medium uppercase tracking-wide">Checkout</span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <span className="font-bold text-lg">₹{total}</span>
-                                <ChevronRight className="w-5 h-5 opacity-60 group-hover:translate-x-1 transition-transform" />
+                                <span className="font-bold text-base">₹{total}</span>
+                                <ChevronRight className="w-4 h-4 opacity-60 group-hover:translate-x-1 transition-transform" />
                             </div>
                         </button>
                     </motion.div>
@@ -81,55 +81,55 @@ export default function Cart({ items, updateQuantity, handlePlaceOrder, onClear,
                             animate={{ y: 0 }}
                             exit={{ y: "100%" }}
                             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                            className="fixed bottom-0 left-0 right-0 z-50 bg-background rounded-t-3xl shadow-2xl h-[90vh] flex flex-col overflow-hidden will-change-transform"
+                            className="fixed bottom-0 left-0 right-0 z-50 bg-background rounded-t-3xl shadow-2xl h-[85vh] flex flex-col overflow-hidden will-change-transform"
                         >
                             {/* Handle & Header */}
                             <div className="bg-background sticky top-0 z-10 p-2 text-center" onClick={() => setIsOpen(false)}>
-                                <div className="w-16 h-1.5 bg-muted rounded-full mx-auto my-2" />
+                                <div className="w-12 h-1 bg-muted rounded-full mx-auto my-1" />
                             </div>
 
-                            <div className="px-6 pb-4 border-b border-border flex justify-between items-center bg-background sticky top-6 z-10">
-                                <h2 className="text-2xl font-bold flex items-center gap-2">
+                            <div className="px-4 pb-2 border-b border-border flex justify-between items-center bg-background sticky top-4 z-10">
+                                <h2 className="text-lg font-bold flex items-center gap-2">
                                     Your Order
-                                    <span className="bg-primary/10 text-primary text-sm px-2 py-0.5 rounded-full font-bold align-middle">{count} items</span>
+                                    <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full font-bold align-middle">{count} items</span>
                                 </h2>
                                 <button
                                     onClick={() => setIsOpen(false)}
-                                    className="p-2 bg-secondary rounded-full hover:bg-secondary/80 transition-colors"
+                                    className="p-1.5 bg-secondary rounded-full hover:bg-secondary/80 transition-colors"
                                 >
-                                    <X className="w-5 h-5" />
+                                    <X className="w-4 h-4" />
                                 </button>
                             </div>
 
                             {/* Content Scroll */}
-                            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+                            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
                                 {/* Items */}
-                                <div className="space-y-4">
+                                <div className="space-y-3">
                                     {items.map((item) => (
-                                        <div key={item._id} className="flex gap-4 items-center bg-card/50 p-3 rounded-2xl border border-border/50">
+                                        <div key={item._id} className="flex gap-3 items-center bg-card/50 p-2 rounded-xl border border-border/50">
                                             {/* Optional Image per item in cart? No, keep it compact */}
-                                            <div className="w-12 h-12 rounded-lg bg-secondary shrink-0 overflow-hidden">
+                                            <div className="w-10 h-10 rounded-lg bg-secondary shrink-0 overflow-hidden">
                                                 {item.image ? <img src={item.image} className="w-full h-full object-cover" /> : null}
                                             </div>
 
                                             <div className="flex-1 min-w-0">
-                                                <p className="font-bold text-foreground truncate">{item.name}</p>
-                                                <p className="text-sm text-primary font-bold">₹{item.price * item.quantity}</p>
+                                                <p className="font-bold text-sm text-foreground truncate">{item.name}</p>
+                                                <p className="text-xs text-primary font-bold">₹{item.price * item.quantity}</p>
                                             </div>
 
-                                            <div className="flex items-center gap-3 bg-background border border-border rounded-xl p-1 shadow-sm">
+                                            <div className="flex items-center gap-2 bg-background border border-border rounded-lg p-0.5 shadow-sm">
                                                 <button
                                                     onClick={() => updateQuantity(item, -1)}
-                                                    className="w-7 h-7 flex items-center justify-center hover:bg-secondary rounded-lg transition-colors text-foreground"
+                                                    className="w-6 h-6 flex items-center justify-center hover:bg-secondary rounded-md transition-colors text-foreground"
                                                 >
-                                                    <Minus className="w-3.5 h-3.5" />
+                                                    <Minus className="w-3 h-3" />
                                                 </button>
-                                                <span className="text-sm font-bold w-4 text-center tabular-nums">{item.quantity}</span>
+                                                <span className="text-xs font-bold w-4 text-center tabular-nums">{item.quantity}</span>
                                                 <button
                                                     onClick={() => updateQuantity(item, 1)}
-                                                    className="w-7 h-7 flex items-center justify-center hover:bg-secondary rounded-lg transition-colors text-foreground"
+                                                    className="w-6 h-6 flex items-center justify-center hover:bg-secondary rounded-md transition-colors text-foreground"
                                                 >
-                                                    <Plus className="w-3.5 h-3.5" />
+                                                    <Plus className="w-3 h-3" />
                                                 </button>
                                             </div>
                                         </div>
@@ -137,24 +137,24 @@ export default function Cart({ items, updateQuantity, handlePlaceOrder, onClear,
                                 </div>
 
                                 {/* Guest Details */}
-                                <div className="bg-secondary/20 rounded-2xl p-5 border border-dashed border-border mt-6">
-                                    <h3 className="font-bold text-sm text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
-                                        <User size={14} /> Guest Details
+                                <div className="bg-secondary/20 rounded-xl p-4 border border-dashed border-border mt-4">
+                                    <h3 className="font-bold text-xs text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                                        <User size={12} /> Guest Details
                                     </h3>
-                                    <div className="space-y-3">
+                                    <div className="space-y-2.5">
                                         <div className="relative">
-                                            <User className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+                                            <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                                             <input
                                                 type="text"
                                                 placeholder="Your Name"
                                                 required
                                                 value={name}
                                                 onChange={(e) => setName(e.target.value)}
-                                                className="w-full pl-10 pr-4 py-3 rounded-xl border bg-background focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-medium"
+                                                className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border bg-background focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-medium"
                                             />
                                         </div>
                                         <div className="relative">
-                                            <Phone className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+                                            <Phone className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                                             <input
                                                 type="tel"
                                                 placeholder="Mobile Number"
@@ -163,28 +163,28 @@ export default function Cart({ items, updateQuantity, handlePlaceOrder, onClear,
                                                 onChange={(e) => setPhone(e.target.value)}
                                                 pattern="[0-9]{10}"
                                                 maxLength={10}
-                                                className="w-full pl-10 pr-4 py-3 rounded-xl border bg-background focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-medium"
+                                                className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border bg-background focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-medium"
                                             />
                                         </div>
                                         <p className="text-[10px] text-muted-foreground px-1">* We use this to track your order.</p>
                                     </div>
                                 </div>
 
-                                <div className="h-20" /> {/* Spacer */}
+                                <div className="h-16" /> {/* Spacer */}
                             </div>
 
                             {/* Footer Actions */}
-                            <div className="p-6 bg-background border-t border-border sticky bottom-0 z-10 pb-8">
-                                <div className="flex justify-between items-center mb-4">
-                                    <span className="text-muted-foreground font-medium">Grand Total</span>
-                                    <span className="text-2xl font-black text-foreground">₹{total}</span>
+                            <div className="p-4 bg-background border-t border-border sticky bottom-0 z-10 pb-6">
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-sm text-muted-foreground font-medium">Grand Total</span>
+                                    <span className="text-xl font-black text-foreground">₹{total}</span>
                                 </div>
                                 <button
                                     onClick={handleSubmit}
-                                    className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-2xl shadow-xl shadow-primary/25 hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-lg"
+                                    className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl shadow-lg shadow-primary/25 hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-base"
                                 >
                                     <span>Place Order</span>
-                                    <ChevronRight className="w-5 h-5" />
+                                    <ChevronRight className="w-4 h-4" />
                                 </button>
                             </div>
                         </motion.div>

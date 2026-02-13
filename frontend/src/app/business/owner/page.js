@@ -30,7 +30,8 @@ function BusinessOwnerPageContent() {
         noOfTables: "",
         startTime: "",
         endTime: "",
-        ac: true
+        ac: true,
+        coverImage: "" // Added
     });
 
     const [validationErrors, setValidationErrors] = useState({});
@@ -185,7 +186,8 @@ function BusinessOwnerPageContent() {
             // include 12-hour formatted times for display/storage if backend wants them
             startTime12: formatTime12(formData.startTime),
             endTime12: formatTime12(formData.endTime),
-            ac: Boolean(formData.ac)
+            ac: Boolean(formData.ac),
+            coverImage: formData.coverImage // Added
         };
 
         try {
@@ -204,7 +206,8 @@ function BusinessOwnerPageContent() {
                 noOfTables: "",
                 startTime: "",
                 endTime: "",
-                ac: true
+                ac: true,
+                coverImage: ""
             });
         } catch (error) {
             console.error("Error creating restaurant", error);
@@ -440,6 +443,17 @@ function BusinessOwnerPageContent() {
                                         </div>
                                     </div>
 
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cover Image URL (Optional)</label>
+                                        <input
+                                            type="url"
+                                            value={formData.coverImage}
+                                            onChange={(e) => setFormData({ ...formData, coverImage: e.target.value })}
+                                            className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-sunset outline-none transition-all"
+                                            placeholder="https://example.com/image.jpg"
+                                        />
+                                    </div>
+
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contact Number</label>
@@ -552,8 +566,9 @@ function BusinessOwnerPageContent() {
                             </div>
                         </motion.div>
                     </div>
-                )}
-            </AnimatePresence>
+                )
+                }
+            </AnimatePresence >
         </div >
     );
 }

@@ -52,7 +52,7 @@ export const addStaff = async (req, res) => {
             workingAt: [{
                 restaurantId: restaurant._id,
                 role: role,
-                isActive: true
+                isActive: false
             }]
         });
 
@@ -66,7 +66,7 @@ export const addStaff = async (req, res) => {
                 start: shiftStart || "09:00",
                 end: shiftEnd || "17:00"
             },
-            isActive: true, // Default to true for now
+            isActive: false, // Default to false for now
             joinedAt: new Date()
         });
 
@@ -84,7 +84,7 @@ export const addStaff = async (req, res) => {
                 },
                 role: role,
                 shift: restaurant.staff[restaurant.staff.length - 1].shift,
-                isActive: true, // Default
+                isActive: false, // Default
                 joinedAt: restaurant.staff[restaurant.staff.length - 1].joinedAt
             }
         });

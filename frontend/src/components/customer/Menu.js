@@ -162,7 +162,7 @@ export default function Menu({ menu, addToCart, removeFromCart, cartItems }) {
             </div>
 
             {/* Menu List */}
-            <div className="max-w-5xl mx-auto w-full p-4">
+            <div className="max-w-3xl mx-auto w-full p-4">
                 {filteredMenu.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-x-8 gap-y-6">
                         {filteredMenu.map((item) => (
@@ -196,17 +196,17 @@ export default function Menu({ menu, addToCart, removeFromCart, cartItems }) {
 // Extracted for performance & layout clarity
 function MenuItem({ item, qty, addToCart, removeFromCart }) {
     return (
-        <div className="flex justify-between items-start gap-4 p-4 rounded-3xl border border-gray-100 dark:border-gray-800 bg-white/50 dark:bg-gray-900/20 hover:bg-white dark:hover:bg-gray-900 hover:border-black/5 dark:hover:border-white/10 transition-all duration-300 relative group shadow-sm hover:shadow-md">
+        <div className="flex justify-between items-start gap-3 p-3 rounded-2xl border border-gray-100 dark:border-gray-800 bg-white/50 dark:bg-gray-900/20 hover:bg-white dark:hover:bg-gray-900 hover:border-black/5 dark:hover:border-white/10 transition-all duration-300 relative group shadow-sm hover:shadow-md">
 
             {/* Left Content */}
-            <div className="flex-1 space-y-2.5 min-w-0 py-1">
+            <div className="flex-1 space-y-1.5 min-w-0 py-0.5">
                 {/* Veg/Non-Veg & Rating */}
                 <div className="flex items-center gap-2">
                     <div className={`
-                        w-4 h-4 border ${item.isVeg ? 'border-green-600' : 'border-red-600'} 
-                        flex items-center justify-center rounded-[4px]
+                        w-3.5 h-3.5 border ${item.isVeg ? 'border-green-600' : 'border-red-600'} 
+                        flex items-center justify-center rounded-[3px]
                     `}>
-                        <div className={`w-2 h-2 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-600'}`} />
+                        <div className={`w-1.5 h-1.5 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-600'}`} />
                     </div>
                     {/* Rating Badge */}
                     {item.rating && (
@@ -216,11 +216,11 @@ function MenuItem({ item, qty, addToCart, removeFromCart }) {
                     )}
                 </div>
 
-                <div className="space-y-1">
-                    <h3 className="font-bold text-gray-900 dark:text-white text-lg leading-snug tracking-tight pr-2">
+                <div className="space-y-0.5">
+                    <h3 className="font-bold text-gray-900 dark:text-white text-base leading-tight tracking-tight pr-2">
                         {item.name}
                     </h3>
-                    <div className="font-bold text-gray-900 dark:text-white text-base">
+                    <div className="font-bold text-gray-900 dark:text-white text-sm">
                         ₹{item.price}
                     </div>
                 </div>
@@ -231,49 +231,49 @@ function MenuItem({ item, qty, addToCart, removeFromCart }) {
             </div>
 
             {/* Right Image & Action */}
-            <div className="relative w-28 sm:w-32 shrink-0 flex flex-col items-center">
-                <div className="w-28 sm:w-32 h-28 sm:h-32 rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800 relative shadow-inner border border-black/5 dark:border-white/5">
+            <div className="relative w-24 shrink-0 flex flex-col items-center">
+                <div className="w-24 h-24 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 relative shadow-inner border border-black/5 dark:border-white/5">
                     {item.image ? (
                         <img
                             src={item.image}
                             alt={item.name}
-                            className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-in-out"
+                            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500 ease-in-out"
                             loading="lazy"
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-700">
-                            <ChefHat size={32} strokeWidth={1.5} />
+                            <ChefHat size={24} strokeWidth={1.5} />
                         </div>
                     )}
                 </div>
 
                 {/* ADD Button */}
-                <div className="absolute -bottom-3 w-20 sm:w-24 z-10">
+                <div className="absolute -bottom-2 w-20 z-10">
                     {qty > 0 ? (
                         <motion.div
                             initial={{ scale: 0.8, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            className="flex items-center justify-between bg-black text-white dark:bg-white dark:text-black h-8 sm:h-9 rounded-xl shadow-xl overflow-hidden font-bold text-xs sm:text-sm ring-2 ring-white dark:ring-black"
+                            className="flex items-center justify-between bg-black text-white dark:bg-white dark:text-black h-7 rounded-lg shadow-lg overflow-hidden font-bold text-xs ring-2 ring-white dark:ring-black"
                         >
                             <button
                                 onClick={() => removeFromCart(item)}
-                                className="w-7 sm:w-8 h-full flex items-center justify-center hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors active:bg-gray-700"
+                                className="w-6 h-full flex items-center justify-center hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors active:bg-gray-700"
                             >
-                                <Minus size={12} strokeWidth={3} />
+                                <Minus size={10} strokeWidth={3} />
                             </button>
-                            <span className="tabular-nums">{qty}</span>
+                            <span className="tabular-nums px-1">{qty}</span>
                             <button
                                 onClick={() => addToCart(item)}
-                                className="w-7 sm:w-8 h-full flex items-center justify-center hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors active:bg-gray-700"
+                                className="w-6 h-full flex items-center justify-center hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors active:bg-gray-700"
                             >
-                                <Plus size={12} strokeWidth={3} />
+                                <Plus size={10} strokeWidth={3} />
                             </button>
                         </motion.div>
                     ) : (
                         <motion.button
                             onClick={() => addToCart(item)}
                             whileTap={{ scale: 0.95 }}
-                            className="w-full h-8 sm:h-9 bg-white text-green-600 dark:bg-gray-900 dark:text-green-400 border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg font-extrabold text-xs sm:text-sm uppercase tracking-wide hover:bg-green-50 dark:hover:bg-gray-800 transition-all"
+                            className="w-full h-7 bg-white text-green-600 dark:bg-gray-900 dark:text-green-400 border border-gray-200 dark:border-gray-800 rounded-lg shadow-md font-extrabold text-xs uppercase tracking-wide hover:bg-green-50 dark:hover:bg-gray-800 transition-all"
                         >
                             ADD
                         </motion.button>

@@ -677,7 +677,7 @@ export default function RestaurantDetails() {
                                 </span>
                                 <span className="flex items-center gap-1">
                                     <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                                    {restaurant.rating || "4.5"}
+                                    {restaurant.ratings?.average || "New"}
                                 </span>
                                 <span className="flex items-center gap-1">
                                     <Clock className="h-4 w-4" />
@@ -811,14 +811,123 @@ export default function RestaurantDetails() {
                                     <div className="font-medium text-gray-900 dark:text-white">{restaurant.address.city}</div>
                                 </div>
                             </div>
+
+                            {/* Map Component */}
+                            <div className="mt-6">
+                                <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white flex items-center gap-2">
+                                    <MapPin className="h-5 w-5 text-indigo-500" />
+                                    Find Us
+                                </h3>
+                                <div className="rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700 h-80 w-full bg-gray-100 relative">
+                                    <iframe
+                                        width="100%"
+                                        height="100%"
+                                        frameBorder="0"
+                                        scrolling="no"
+                                        marginHeight="0"
+                                        marginWidth="0"
+                                        title="Restaurant Location"
+                                        src={(function () {
+                                            const link = restaurant.address?.locationUrl;
+                                            let query = "";
+
+                                            if (link) {
+                                                // 1. Try to extract specific coordinates (@lat,lng) - Highest Priority
+                                                const coordsMatch = link.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+                                                if (coordsMatch) {
+                                                    query = `${coordsMatch[1]},${coordsMatch[2]}`;
+                                                }
+                                                // 2. Try to extract 'q' parameter
+                                                else {
+                                                    const qMatch = link.match(/[?&]q=([^&]+)/);
+                                                    if (qMatch) {
+                                                        query = decodeURIComponent(qMatch[1]);
+                                                    }
+                                                    // 3. Try to extract place name from /place/PATH
+                                                    else {
+                                                        const placeMatch = link.match(/\/place\/([^/?]+)/);
+                                                        if (placeMatch) {
+                                                            query = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            // 4. Fallback to address if no link info found
+                                            if (!query) {
+                                                query = `${restaurant.address?.street || ''}, ${restaurant.address?.city || ''}, ${restaurant.address?.state || ''}, ${restaurant.address?.pincode || ''}`;
+                                            }
+
+                                            return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+                                        })()}
+                                        className="absolute inset-0"
+                                    ></iframe>
+                                </div>
+                                {restaurant.address?.locationUrl && (
+                                    <div className="mt-3 text-right">
+                                        <a
+                                            href={restaurant.address.locationUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1"
+                                        >
+                                            Open in Google Maps <ChevronLeft className="h-3 w-3 rotate-180" />
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
                     {activeTab === "reviews" && (
-                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-12 text-center border border-gray-200 dark:border-gray-700">
-                            <Star className="h-16 w-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-                            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Reviews Yet</h3>
-                            <p className="text-gray-600 dark:text-gray-400">Be the first to review!</p>
+                        <div className="space-y-6">
+                            {/* Stats */}
+                            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                                <div>
+                                    <div className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                        {restaurant.ratings?.average || 0}
+                                        <Star className="h-6 w-6 text-yellow-400 fill-yellow-400" />
+                                    </div>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">{restaurant.ratings?.totalReviews || 0} reviews</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm font-medium text-gray-900 dark:text-white">Customer Feedback</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Verified Ratings</p>
+                                </div>
+                            </div>
+
+                            {/* Reviews List */}
+                            {restaurant.reviews && restaurant.reviews.length > 0 ? (
+                                <div className="space-y-4">
+                                    {restaurant.reviews.slice().reverse().map((review, idx) => (
+                                        <div key={idx} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="font-semibold text-gray-900 dark:text-white">{review.customerName || "Guest"}</div>
+                                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                    {new Date(review.createdAt).toLocaleDateString()}
+                                                </div>
+                                            </div>
+                                            <div className="flex text-yellow-400 mb-2">
+                                                {[...Array(5)].map((_, i) => (
+                                                    <Star
+                                                        key={i}
+                                                        className={`h-4 w-4 ${i < review.rating ? "fill-current" : "text-gray-300 dark:text-gray-600"}`}
+                                                    />
+                                                ))}
+                                            </div>
+                                            {review.comment && (
+                                                <p className="text-gray-600 dark:text-gray-400 text-sm mt-2">{review.comment}</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-12 text-center border border-gray-200 dark:border-gray-700">
+                                    <Star className="h-16 w-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+                                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Reviews Yet</h3>
+                                    <p className="text-gray-600 dark:text-gray-400">Be the first to review!</p>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

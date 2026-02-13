@@ -16,7 +16,9 @@ export const createRestaurant = async (req, res) => {
             startTime12,
             endTime12,
             ac,
-            gstNumber
+            gstNumber,
+            gmapLink, // support from frontend
+            coverImage // Added cover image
         } = req.body;
 
         // Basic validation
@@ -63,11 +65,13 @@ export const createRestaurant = async (req, res) => {
         const newRestaurant = new Restaurant({
             name,
             // Address is expected to be an object from frontend now, but if it comes as string (legacy compatibility or error), handle it.
-            address: typeof address === 'object' ? address : {
+            address: typeof address === 'object' ? { ...address, locationUrl: gmapLink || address.locationUrl } : {
                 street: address,
                 city: 'Unknown',
                 state: 'Unknown',
-                country: 'India'
+                state: 'Unknown',
+                country: 'India',
+                locationUrl: gmapLink
             },
             phone: contact,
             cuisineType: [type], // Convert single type to array
@@ -80,6 +84,7 @@ export const createRestaurant = async (req, res) => {
             owner: req.user._id,
             isAC: !!ac,
             gstNumber,
+            coverImage: coverImage || "", // Save cover image
             description: "", // Default description, can be updated later
             settings: {
                 allowTableBooking: true,
@@ -443,6 +448,40 @@ export const getRestaurantAnalytics = async (req, res) => {
 
     } catch (error) {
         console.error("Analytics Error:", error);
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
+};
+
+// Add Review (Public)
+export const addReview = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { rating, comment, customerName } = req.body;
+
+        const restaurant = await Restaurant.findById(id);
+        if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+
+        const newReview = {
+            rating: Number(rating),
+            comment,
+            customerName: customerName || "Guest",
+            createdAt: new Date()
+        };
+
+        restaurant.reviews.push(newReview);
+
+        // Update Average Rating
+        const totalReviews = restaurant.reviews.length;
+        const sumRatings = restaurant.reviews.reduce((acc, r) => acc + r.rating, 0);
+        restaurant.ratings = {
+            average: (sumRatings / totalReviews).toFixed(1),
+            totalReviews
+        };
+
+        await restaurant.save();
+
+        res.status(200).json({ success: true, message: "Review added successfully" });
+    } catch (error) {
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 };

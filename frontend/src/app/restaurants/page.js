@@ -27,7 +27,7 @@ const RestaurantCard = React.memo(({ restaurant }) => (
             {/* Rating */}
             <div className="absolute top-3 right-3 flex items-center gap-1 bg-white dark:bg-gray-800 px-2 py-1 rounded-md shadow-sm border border-gray-200 dark:border-gray-700">
                 <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                <span className="text-sm font-medium text-gray-900 dark:text-white">{restaurant.ratings?.average || "4.5"}</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">{restaurant.ratings?.average || "New"}</span>
             </div>
         </div>
 

@@ -9,7 +9,8 @@ import {
     checkTableStatus,
     toggleTableService,
     toggleTableBill,
-    getRestaurantAnalytics // Added import
+    getRestaurantAnalytics, // Added import
+    addReview
 } from "../controllers/restaurantController.js";
 import { addStaff, removeStaff, getStaff, updateStaffPassword, toggleStaffStatus, getStaffAnalytics } from "../controllers/staffController.js";
 import { getMenuItems, addMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability } from "../controllers/menuController.js";
@@ -23,6 +24,7 @@ router.get("/public/:id", getRestaurantDetailsPublic);
 router.get("/public/:id/table/:tableId", checkTableStatus);
 router.post("/public/:id/table/:tableId/service", toggleTableService);
 router.post("/public/:id/table/:tableId/bill", toggleTableBill);
+router.post("/public/:id/review", addReview);
 
 // Protected Routes
 router.post("/", protect, authorize('owner'), createRestaurant);

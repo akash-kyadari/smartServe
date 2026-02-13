@@ -144,6 +144,7 @@ const RestaurantSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
         },
+        customerName: String, // For guest users
         rating: Number,
         comment: String,
         createdAt: { type: Date, default: Date.now },

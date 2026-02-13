@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useParams, useRouter } from "next/navigation";
-import { Loader2, AlertCircle, ShoppingBag, UtensilsCrossed, ChevronLeft, Clock, History, MapPin, Phone, CheckCircle } from "lucide-react";
+import { Loader2, AlertCircle, ShoppingBag, UtensilsCrossed, ChevronLeft, Clock, History, MapPin, Phone, CheckCircle, Star, MoveRight } from "lucide-react";
 import { getSocket } from "@/lib/socket";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -33,6 +33,30 @@ export default function TablePage({ params }) {
     const [customerInfo, setCustomerInfo] = useState({ name: "", phone: "" });
     const [isSessionStarted, setIsSessionStarted] = useState(false);
     const [sessionEnded, setSessionEnded] = useState(false);
+
+    // Rating State
+    const [showRating, setShowRating] = useState(false);
+    const [rating, setRating] = useState(0);
+    const [review, setReview] = useState("");
+    const [submittingReview, setSubmittingReview] = useState(false);
+
+    const submitReview = async () => {
+        if (rating === 0) return;
+        setSubmittingReview(true);
+        try {
+            await axios.post(`${API_URL}/restaurants/public/${restroId}/review`, {
+                rating,
+                comment: review,
+                customerName: customerInfo.name
+            });
+            setShowRating(false); // Proceed to Thank You
+        } catch (error) {
+            console.error("Failed to submit review", error);
+            setShowRating(false); // Proceed anyway
+        } finally {
+            setSubmittingReview(false);
+        }
+    };
 
     // Initial Load
     useEffect(() => {
@@ -120,6 +144,7 @@ export default function TablePage({ params }) {
             // Session Ended by Waiter
             setSessionEnded(true);
             setIsSessionStarted(false);
+            setShowRating(true); // Show rating modal
             // Do NOT remove customer details so they persist for next time
             // localStorage.removeItem("customerName");
             // localStorage.removeItem("customerPhone");
@@ -251,6 +276,58 @@ export default function TablePage({ params }) {
     }
 
     if (sessionEnded) {
+        if (showRating) {
+            return (
+                <div className="flex flex-col h-screen items-center justify-center p-6 text-center animate-in fade-in duration-500 bg-background text-foreground">
+                    <div className="max-w-md w-full space-y-8">
+                        <div>
+                            <h2 className="text-2xl font-bold mb-2">How was your food?</h2>
+                            <p className="text-muted-foreground">Please rate your experience at {restaurant?.name}</p>
+                        </div>
+
+                        <div className="flex justify-center gap-2 py-4">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                    key={star}
+                                    onClick={() => setRating(star)}
+                                    className="focus:outline-none transition-transform hover:scale-110 active:scale-95"
+                                >
+                                    <Star
+                                        size={40}
+                                        className={`${rating >= star ? "fill-yellow-400 text-yellow-400" : "text-gray-300 dark:text-gray-600"}`}
+                                        strokeWidth={1.5}
+                                    />
+                                </button>
+                            ))}
+                        </div>
+
+                        <textarea
+                            value={review}
+                            onChange={(e) => setReview(e.target.value)}
+                            placeholder="Write a review (optional)..."
+                            className="w-full p-4 rounded-xl border border-input bg-secondary/50 focus:bg-background transition-all focus:ring-2 ring-primary/20 outline-none resize-none h-32"
+                        />
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowRating(false)}
+                                className="flex-1 py-3 rounded-xl font-medium text-muted-foreground hover:bg-secondary transition-colors"
+                            >
+                                Skip
+                            </button>
+                            <button
+                                onClick={submitReview}
+                                disabled={rating === 0 || submittingReview}
+                                className="flex-1 bg-primary text-primary-foreground py-3 rounded-xl font-bold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                            >
+                                {submittingReview ? <Loader2 className="animate-spin h-5 w-5" /> : "Submit"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         return (
             <div className="flex flex-col h-screen items-center justify-center p-6 text-center animate-in fade-in duration-500 bg-background text-foreground">
                 <div className="bg-emerald-100 dark:bg-emerald-900/30 p-6 rounded-full text-emerald-600 dark:text-emerald-400 mb-6 shadow-lg shadow-emerald-500/10">
@@ -270,11 +347,22 @@ export default function TablePage({ params }) {
 
     if (!isSessionStarted) {
         return (
-            <div className="flex flex-col h-screen bg-background relative overflow-hidden font-sans">
-                {/* Background decoration */}
+            <div className="flex flex-col h-screen bg-background relative overflow-hidden font-sans ">
+                {/* Background Image */}
+                {restaurant?.coverImage && (
+                    <div className="absolute inset-0 z-0">
+                        <div className="absolute inset-0 bg-black/60 z-10" /> {/* Dark overlay */}
+                        <img
+                            src={restaurant.coverImage}
+                            alt="Background"
+                            className="w-full h-full object-cover opacity-50 blur-sm"
+                        />
+                    </div>
+                )}
+                {/* Background decoration (keep for fallback or added effect) */}
                 <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-primary/10 to-transparent -z-10" />
 
-                <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-md mx-auto w-full animate-in slide-in-from-bottom-10 fade-in duration-500">
+                <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-md mx-auto w-full animate-in slide-in-from-bottom-10 fade-in duration-500 scale-85 relative z-10">
                     <div className="text-center mb-10">
                         <div className="inline-block p-5 rounded-2xl bg-card shadow-xl mb-6 transform rotate-3 border border-border">
                             <UtensilsCrossed size={40} className="text-primary" />
@@ -344,7 +432,7 @@ export default function TablePage({ params }) {
             <div className="relative h-48 w-full bg-slate-900 shrink-0 overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent z-10" />
                 <img
-                    src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80"
+                    src={restaurant.coverImage || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80"}
                     alt="Restaurant"
                     className="absolute inset-0 w-full h-full object-cover opacity-80"
                 />
@@ -354,7 +442,18 @@ export default function TablePage({ params }) {
                         <h1 className="text-3xl font-bold mb-1 tracking-tight">{restaurant.name}</h1>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium opacity-90">
                             <span className="bg-white/20 backdrop-blur-md px-2 py-0.5 rounded text-xs uppercase tracking-wider">Table {table?.tableNumber}</span>
-                            <span className="flex items-center gap-1"><MapPin size={12} /> {restaurant.address?.city || 'City'}</span>
+                            {restaurant.address?.locationUrl ? (
+                                <a
+                                    href={restaurant.address.locationUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 hover:text-sunset transition-colors hover:underline"
+                                >
+                                    <MapPin size={12} /> {restaurant.address?.city || 'City'}
+                                </a>
+                            ) : (
+                                <span className="flex items-center gap-1"><MapPin size={12} /> {restaurant.address?.city || 'City'}</span>
+                            )}
                         </div>
                     </motion.div>
                 </div>
