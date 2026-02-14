@@ -25,12 +25,17 @@ passport.use(
                 });
 
                 if (user) {
-                    // Update googleId and authProvider if not present
+                    let changed = false;
+                    // If user exists but doesn't have googleId, link it
                     if (!user.googleId) {
                         user.googleId = profile.id;
-                        user.authProvider = "google";
-                        await user.save();
+                        // Only change authProvider if it's not already 'local'
+                        if (user.authProvider !== "local") {
+                            user.authProvider = "google";
+                        }
+                        changed = true;
                     }
+                    if (changed) await user.save();
                     return done(null, user);
                 }
 

@@ -114,10 +114,21 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    // Verify password
-    if (user.authProvider !== "local") {
+    // Verify password login permission
+    const isOwnerOrCustomer = user.roles.some(r => ["owner", "customer", "admin"].includes(r));
+    const isStaffOnly = user.roles.some(r => ["waiter", "kitchen", "manager"].includes(r)) && !isOwnerOrCustomer;
+
+    // Staff accounts follow the owner's choice strictly
+    if (isStaffOnly && user.authProvider !== "local") {
       return res.status(400).json({
-        message: `This account uses ${user.authProvider} login. Please use the "Continue with ${user.authProvider.charAt(0).toUpperCase() + user.authProvider.slice(1)}" button.`
+        message: "This staff account is configured for Google login only. Please use the 'Continue with Google' button."
+      });
+    }
+
+    // Generic check: if there's no password (pure Google account), they must use Google
+    if (!user.password) {
+      return res.status(400).json({
+        message: "This account does not have a password set. Please use 'Continue with Google'."
       });
     }
 
