@@ -1,7 +1,7 @@
 import { Server } from "socket.io";
 import http from "http";
-import express from "express";
 import Restaurant from "../models/RestaurantModel.js";
+import express from "express";
 import User from "../models/UserModel.js";
 
 const app = express();
