@@ -127,7 +127,105 @@ class SocketService {
         }
     }
 
+    // Listen for order events
+    onNewOrder(callback) {
+        if (this.socket) {
+            this.socket.on('new_order', callback);
+        }
+    }
+
+    onOrderUpdate(callback) {
+        if (this.socket) {
+            this.socket.on('order_update', callback);
+        }
+    }
+
+    // Listen for staff/table events
+    onStaffUpdate(callback) {
+        if (this.socket) {
+            this.socket.on('staff_update', callback);
+        }
+    }
+
+    onTableFreed(callback) {
+        if (this.socket) {
+            this.socket.on('table_freed', callback);
+        }
+    }
+
+    onTableServiceUpdate(callback) {
+        if (this.socket) {
+            this.socket.on('table_service_update', callback);
+        }
+    }
+
+    onTableBillUpdate(callback) {
+        if (this.socket) {
+            this.socket.on('table_bill_update', callback);
+        }
+    }
+
+    onMenuStockUpdate(callback) {
+        if (this.socket) {
+            this.socket.on('menu_stock_update', callback);
+        }
+    }
+
+    onRestaurantStatusUpdate(callback) {
+        if (this.socket) {
+            this.socket.on('restaurant_status_update', callback);
+        }
+    }
+
     // Remove listeners
+    offNewOrder(callback) {
+        if (this.socket) {
+            this.socket.off('new_order', callback);
+        }
+    }
+
+    offOrderUpdate(callback) {
+        if (this.socket) {
+            this.socket.off('order_update', callback);
+        }
+    }
+
+    offStaffUpdate(callback) {
+        if (this.socket) {
+            this.socket.off('staff_update', callback);
+        }
+    }
+
+    offTableFreed(callback) {
+        if (this.socket) {
+            this.socket.off('table_freed', callback);
+        }
+    }
+
+    offTableServiceUpdate(callback) {
+        if (this.socket) {
+            this.socket.off('table_service_update', callback);
+        }
+    }
+
+    offTableBillUpdate(callback) {
+        if (this.socket) {
+            this.socket.off('table_bill_update', callback);
+        }
+    }
+
+    offMenuStockUpdate(callback) {
+        if (this.socket) {
+            this.socket.off('menu_stock_update', callback);
+        }
+    }
+
+    offRestaurantStatusUpdate(callback) {
+        if (this.socket) {
+            this.socket.off('restaurant_status_update', callback);
+        }
+    }
+
     offBookingCreated(callback) {
         if (this.socket) {
             this.socket.off('booking:created', callback);

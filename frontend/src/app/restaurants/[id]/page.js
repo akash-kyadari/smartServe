@@ -606,12 +606,16 @@ export default function RestaurantDetails() {
     const [selectedCategory, setSelectedCategory] = useState("All");
     const searchInputRef = useRef(null);
 
+    const { fetchRestaurantById } = useRestaurantsListStore();
+
     useEffect(() => {
         if (!id) return;
         const fetchDetails = async () => {
             try {
-                const { data } = await axios.get(`${API_URL}/restaurants/public/${id}`);
-                setRestaurant(data.restaurant);
+                // Use the store's fetch method which handles caching
+                const data = await fetchRestaurantById(id);
+                setRestaurant(data);
+                if (data) document.title = `${data.name} | Smart Serve`;
             } catch (error) {
                 console.error("Error fetching restaurant:", error);
             } finally {
@@ -619,7 +623,7 @@ export default function RestaurantDetails() {
             }
         };
         fetchDetails();
-    }, [id]);
+    }, [id, fetchRestaurantById]);
 
     // Memoized categories
     const categories = useMemo(() => {

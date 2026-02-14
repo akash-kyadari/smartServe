@@ -6,7 +6,7 @@ import useAuthStore from "@/store/useAuthStore";
 import { Loader2, ClipboardList, CheckCircle, Bell, ChefHat, DollarSign, User } from "lucide-react"; // Removed unused imports
 import { motion, AnimatePresence } from "framer-motion";
 import RoleGuard from "@/components/auth/RoleGuard";
-import { getSocket } from "@/lib/socket";
+import socketService from "@/services/socketService";
 import axios from "axios";
 import TableDetailsModal from "@/components/business/waiter/TableDetailsModal";
 
@@ -20,6 +20,11 @@ function WaiterPOSPageContent() {
     const [selectedTable, setSelectedTable] = useState(null);
     const [isOnline, setIsOnline] = useState(false);
     const [isRestroActive, setIsRestroActive] = useState(true);
+
+    // Update title
+    useEffect(() => {
+        document.title = "Waiter Workspace | Smart Serve";
+    }, []);
 
     const rawRestroId = user?.workingAt?.[0]?.restaurantId;
     const restaurantId = (rawRestroId && typeof rawRestroId === 'object') ? rawRestroId._id : rawRestroId;
@@ -118,9 +123,9 @@ function WaiterPOSPageContent() {
     useEffect(() => {
         if (!restaurantId) return;
 
-        const socket = getSocket();
+        socketService.connect();
         console.log("Joined Staff Room:", restaurantId);
-        socket.emit("join_staff_room", { restaurantId, userId });
+        socketService.joinStaffRoom(restaurantId, userId);
 
         // Service/Bill Updates
         const handleServiceUpdate = (data) => {
@@ -154,14 +159,6 @@ function WaiterPOSPageContent() {
                 });
                 // Also remove orders for this table locally
                 setOrders(prev => prev.filter(o => o.tableId !== data.tableId));
-            } else {
-                fetchData();
-            }
-        };
-
-        const handleTableUpdate = (data) => {
-            if (data && data.tableId) {
-                updateTableStatus(restaurantId, data.tableId, data);
             } else {
                 fetchData();
             }
@@ -210,27 +207,22 @@ function WaiterPOSPageContent() {
             fetchData();
         };
 
-        socket.on("new_order", handleNewOrder);
-        socket.on("order_update", handleOrderUpdate);
-
-        socket.on("table_update", handleTableUpdate);
-        socket.on("table_freed", handleTableFreed);
-
-        socket.on("table_service_update", handleServiceUpdate);
-        socket.on("table_bill_update", handleBillUpdate);
-
-        socket.on("staff_update", handleStaffUpdate);
-        socket.on("restaurant_status_update", handleRestroStatusUpdate);
+        socketService.onNewOrder(handleNewOrder);
+        socketService.onOrderUpdate(handleOrderUpdate);
+        socketService.onTableFreed(handleTableFreed);
+        socketService.onTableServiceUpdate(handleServiceUpdate);
+        socketService.onTableBillUpdate(handleBillUpdate);
+        socketService.onStaffUpdate(handleStaffUpdate);
+        socketService.onRestaurantStatusUpdate(handleRestroStatusUpdate);
 
         return () => {
-            socket.off("new_order", handleNewOrder);
-            socket.off("order_update", handleOrderUpdate);
-            socket.off("table_update", handleTableUpdate);
-            socket.off("table_freed", handleTableFreed);
-            socket.off("table_service_update", handleServiceUpdate);
-            socket.off("table_bill_update", handleBillUpdate);
-            socket.off("staff_update", handleStaffUpdate);
-            socket.off("restaurant_status_update", handleRestroStatusUpdate);
+            socketService.offNewOrder(handleNewOrder);
+            socketService.offOrderUpdate(handleOrderUpdate);
+            socketService.offTableFreed(handleTableFreed);
+            socketService.offTableServiceUpdate(handleServiceUpdate);
+            socketService.offTableBillUpdate(handleBillUpdate);
+            socketService.offStaffUpdate(handleStaffUpdate);
+            socketService.offRestaurantStatusUpdate(handleRestroStatusUpdate);
         };
     }, [restaurantId, user, fetchData, userId, updateTableStatus]);
 

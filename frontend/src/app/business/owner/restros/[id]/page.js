@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useParams } from "next/navigation";
 import useRestaurantStore from "@/store/useRestaurantStore";
 import useAuthStore from "@/store/useAuthStore";
-import { getSocket } from "@/lib/socket";
+import socketService from "@/services/socketService";
 import axios from "axios";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL) + "/api";
@@ -414,8 +414,8 @@ export default function RestaurantDashboard() {
                                                             <div className="flex justify-between items-start mb-2">
                                                                 <span className="font-mono text-xs text-muted-foreground">#{order._id.slice(-4)}</span>
                                                                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${order.status === 'PLACED' ? 'bg-blue-100 text-blue-700' :
-                                                                        order.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' :
-                                                                            'bg-orange-100 text-orange-700'
+                                                                    order.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' :
+                                                                        'bg-orange-100 text-orange-700'
                                                                     }`}>
                                                                     {order.status}
                                                                 </span>

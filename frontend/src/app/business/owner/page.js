@@ -101,6 +101,10 @@ function BusinessOwnerPageContent() {
     };
 
     useEffect(() => {
+        document.title = "Owner Dashboard | Smart Serve";
+    }, []);
+
+    useEffect(() => {
         if (!isAuthenticated || !user) return;
 
         const isOwner = user.roles.includes('owner');

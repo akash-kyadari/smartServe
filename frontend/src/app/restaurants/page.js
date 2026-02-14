@@ -79,6 +79,10 @@ export default function RestaurantsPage() {
     const { restaurants, isLoading, fetchRestaurants } = useRestaurantsListStore();
 
     useEffect(() => {
+        document.title = "Explore Restaurants | Smart Serve";
+    }, []);
+
+    useEffect(() => {
         // Fetch restaurants (will use cache if available)
         fetchRestaurants();
     }, [fetchRestaurants]);

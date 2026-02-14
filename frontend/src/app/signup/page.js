@@ -21,6 +21,10 @@ export default function SignupPage() {
 
     // Redirect if already authenticated
     useEffect(() => {
+        document.title = "Sign Up | Smart Serve";
+    }, []);
+
+    useEffect(() => {
         if (!authLoading && isAuthenticated) {
             router.push('/');
         }

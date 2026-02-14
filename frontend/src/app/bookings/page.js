@@ -11,8 +11,12 @@ import socketService from "@/services/socketService";
 export default function BookingsPage() {
     const [cancellingId, setCancellingId] = useState(null);
     const { isAuthenticated, isLoading: authLoading } = useAuthStore();
-    const { bookings, isLoading, fetchBookings, cancelBooking: cancelBookingStore } = useBookingsStore();
+    const { bookings, isLoading, fetchBookings, cancelBooking: cancelBookingStore, updateBookingStatus } = useBookingsStore();
     const router = useRouter();
+
+    useEffect(() => {
+        document.title = "My Bookings | Smart Serve";
+    }, []);
 
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
@@ -43,8 +47,8 @@ export default function BookingsPage() {
         // Listen for booking cancellations
         const handleBookingCancelled = (data) => {
             const { bookingId } = data;
-            // Update store to remove cancelled booking
-            fetchBookings(true); // Force refresh
+            // Update store to update booking status instead of full refresh
+            updateBookingStatus(bookingId, 'cancelled');
         };
 
         socketService.onBookingCancelled(handleBookingCancelled);

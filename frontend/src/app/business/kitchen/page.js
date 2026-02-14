@@ -6,7 +6,7 @@ import useAuthStore from "@/store/useAuthStore";
 import { Loader2, ChefHat, Clock, CheckCircle, Flame, User, Users, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import RoleGuard from "@/components/auth/RoleGuard";
-import { getSocket } from "@/lib/socket"; // Import Socket
+import socketService from "@/services/socketService"; // Import Socket
 import axios from "axios";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL) + "/api";
@@ -23,6 +23,11 @@ function KitchenPageContent() {
     const [staff, setStaff] = useState([]);
     const [loading, setLoading] = useState(true);
     const [now, setNow] = useState(Date.now());
+
+    // Update title
+    useEffect(() => {
+        document.title = "Kitchen Display | Smart Serve";
+    }, []);
 
     // Update time every minute for "elapsed" calculation
     useEffect(() => {
@@ -58,8 +63,8 @@ function KitchenPageContent() {
     useEffect(() => {
         if (!restaurantId) return;
 
-        const socket = getSocket();
-        socket.emit("join_staff_room", restaurantId);
+        socketService.connect();
+        socketService.joinStaffRoom(restaurantId, user?._id);
 
         const handleNewOrder = (newOrder) => {
             setOrders(prev => [...prev, newOrder]);
@@ -91,16 +96,16 @@ function KitchenPageContent() {
             setStaff(prev => prev.map(s => s._id === staffId ? { ...s, isActive } : s));
         };
 
-        socket.on("new_order", handleNewOrder);
-        socket.on("order_update", handleOrderUpdate);
-        socket.on("staff_update", handleStaffUpdate);
+        socketService.onNewOrder(handleNewOrder);
+        socketService.onOrderUpdate(handleOrderUpdate);
+        socketService.onStaffUpdate(handleStaffUpdate);
 
         return () => {
-            socket.off("new_order", handleNewOrder);
-            socket.off("order_update", handleOrderUpdate);
-            socket.off("staff_update", handleStaffUpdate);
+            socketService.offNewOrder(handleNewOrder);
+            socketService.offOrderUpdate(handleOrderUpdate);
+            socketService.offStaffUpdate(handleStaffUpdate);
         };
-    }, [restaurantId]);
+    }, [restaurantId, user?._id]);
 
     // Actions
     const updateStatus = async (orderId, newStatus) => {

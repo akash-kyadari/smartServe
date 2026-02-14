@@ -12,8 +12,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Smart Serve | Restaurant Management",
+  title: {
+    default: "Smart Serve | Restaurant Management",
+    template: "%s | Smart Serve"
+  },
   description: "Seamless dining experience for modern restaurants.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 import { ThemeProvider } from "@/components/theme-provider";

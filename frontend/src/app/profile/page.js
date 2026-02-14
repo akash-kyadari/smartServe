@@ -21,6 +21,10 @@ export default function ProfilePage() {
     });
 
     useEffect(() => {
+        document.title = "My Profile | Smart Serve";
+    }, []);
+
+    useEffect(() => {
         if (!authLoading && !isAuthenticated) {
             router.push('/login');
         }

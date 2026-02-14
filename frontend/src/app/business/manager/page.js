@@ -16,6 +16,10 @@ function ManagerDashboardContent() {
     const currentRestaurant = restaurants.find(r => r._id === restaurantId);
 
     useEffect(() => {
+        document.title = "Manager Dashboard | Smart Serve";
+    }, []);
+
+    useEffect(() => {
         if (user && restaurantId && !currentRestaurant) {
             fetchRestaurantById(restaurantId);
         }

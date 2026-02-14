@@ -15,6 +15,10 @@ export default function RestroLogin() {
     const router = useRouter();
     const { login, isLoading, error, isAuthenticated, isLoading: authLoading, user } = useAuthStore();
 
+    useEffect(() => {
+        document.title = "Restaurant Partner Login | Smart Serve";
+    }, []);
+
     // Redirect if already authenticated as restaurant staff
     useEffect(() => {
         if (!authLoading && isAuthenticated && user?.role !== 'customer') {

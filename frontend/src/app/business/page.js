@@ -16,6 +16,7 @@ export default function BusinessHome() {
         const check = () => setIsMobile(window.innerWidth < 768);
         check();
         window.addEventListener('resize', check);
+        document.title = "Grow Your Restaurant | Smart Serve";
         return () => window.removeEventListener('resize', check);
     }, []);
 

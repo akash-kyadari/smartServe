@@ -47,7 +47,7 @@ export default function BusinessNavbar({ currentRestaurant }) {
                     <div className="flex items-center gap-4">
                         <Link href="/business" className="flex items-center gap-2 group">
                             <div className="h-8 w-8 bg-sunset rounded-lg flex items-center justify-center text-white font-black text-xl group-hover:bg-orange-600 transition-colors">S</div>
-                            <span className="font-bold text-xl text-gray-900 dark:text-white tracking-tight block">Smart Serve</span>
+                            <span className="w-[110px] font-bold text-xl text-gray-900 dark:text-white tracking-tight block">Smart Serve</span>
                         </Link>
 
                         {/* Separator & Breadcrumb for Restaurant Context */}

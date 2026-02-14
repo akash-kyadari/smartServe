@@ -139,7 +139,10 @@ export default function KitchenPage() {
     const [orders, setOrders] = useState(INITIAL_ORDERS);
     const [isMounted, setIsMounted] = useState(false);
 
-    useEffect(() => setIsMounted(true), []);
+    useEffect(() => {
+        setIsMounted(true);
+        document.title = "Kitchen Display Demo | Smart Serve";
+    }, []);
 
     const markReady = (id) => {
         setOrders((prev) => prev.filter(o => o.id !== id));

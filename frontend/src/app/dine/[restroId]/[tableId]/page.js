@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { useParams, useRouter } from "next/navigation";
 import { Loader2, AlertCircle, ShoppingBag, UtensilsCrossed, ChevronLeft, Clock, History, MapPin, Phone, CheckCircle, Star, MoveRight } from "lucide-react";
-import { getSocket } from "@/lib/socket";
+import socketService from "@/services/socketService";
 import { motion, AnimatePresence } from "framer-motion";
 
 // Components
@@ -68,6 +68,15 @@ export default function TablePage({ params }) {
         }
     }, []);
 
+    // Set Title
+    useEffect(() => {
+        if (restaurant) {
+            document.title = `Dine at ${restaurant.name} | Table ${table?.tableNumber || ''}`;
+        } else {
+            document.title = "Dine In | Smart Serve";
+        }
+    }, [restaurant, table]);
+
     // Fetch Data
     useEffect(() => {
         if (!restroId || !tableId) return;
@@ -109,19 +118,19 @@ export default function TablePage({ params }) {
         fetchData();
 
         // Socket Connection
-        const socket = getSocket();
-        socket.emit("join_table_room", { restroId, tableId });
-        socket.emit("join_public_room", restroId); // New Room for Restro-wide updates
+        socketService.connect();
+        socketService.joinTableRoom(restroId, tableId);
+        socketService.joinRestaurantRoom(restroId); // New Room for Restro-wide updates
 
-        socket.on("restaurant_status_update", (status) => {
+        const handleRestaurantStatus = (status) => {
             console.log("Restaurant Status Update:", status);
             setRestaurant(prev => prev ? { ...prev, ...status } : prev);
             if (!status.isOpen || !status.isActive) {
                 alert("Restaurant has closed or is not accepting orders.");
             }
-        });
+        };
 
-        socket.on("order_update", (updatedOrder) => {
+        const handleOrderUpdate = (updatedOrder) => {
             if (updatedOrder.status === "COMPLETED") {
                 setActiveOrders(prev => {
                     const next = prev.filter(o => o._id !== updatedOrder._id);
@@ -138,9 +147,9 @@ export default function TablePage({ params }) {
                     }
                 });
             }
-        });
+        };
 
-        socket.on("menu_stock_update", (updatedItems) => {
+        const handleMenuStockUpdate = (updatedItems) => {
             console.log("Menu Stock Update:", updatedItems);
             setRestaurant(prev => {
                 if (!prev) return prev;
@@ -173,37 +182,41 @@ export default function TablePage({ params }) {
                 });
                 return changed ? newCart : prev;
             });
-        });
+        };
 
-        socket.on("table_freed", () => {
+        const handleTableFreed = () => {
             // Session Ended by Waiter
             setSessionEnded(true);
             setIsSessionStarted(false);
             setShowRating(true); // Show rating modal
-            // Do NOT remove customer details so they persist for next time
-            // localStorage.removeItem("customerName");
-            // localStorage.removeItem("customerPhone");
             localStorage.removeItem("cart"); // Cart should probably be cleared though
             setActiveOrders([]);
             setTable(prev => ({ ...prev, isOccupied: false }));
             setCart({});
-        });
+        };
 
-        socket.on("table_service_update", (data) => {
+        const handleTableServiceUpdate = (data) => {
             setTable(prev => ({ ...prev, requestService: data.requestService }));
-        });
+        };
 
-        socket.on("table_bill_update", (data) => {
+        const handleTableBillUpdate = (data) => {
             setTable(prev => ({ ...prev, requestBill: data.requestBill }));
-        });
+        };
+
+        socketService.onRestaurantStatusUpdate(handleRestaurantStatus);
+        socketService.onOrderUpdate(handleOrderUpdate);
+        socketService.onMenuStockUpdate(handleMenuStockUpdate);
+        socketService.onTableFreed(handleTableFreed);
+        socketService.onTableServiceUpdate(handleTableServiceUpdate);
+        socketService.onTableBillUpdate(handleTableBillUpdate);
 
         return () => {
-            socket.off("order_update");
-            socket.off("table_freed");
-            socket.off("table_service_update");
-            socket.off("table_bill_update");
-            socket.off("restaurant_status_update");
-            socket.off("menu_stock_update");
+            socketService.offRestaurantStatusUpdate(handleRestaurantStatus);
+            socketService.offOrderUpdate(handleOrderUpdate);
+            socketService.offMenuStockUpdate(handleMenuStockUpdate);
+            socketService.offTableFreed(handleTableFreed);
+            socketService.offTableServiceUpdate(handleTableServiceUpdate);
+            socketService.offTableBillUpdate(handleTableBillUpdate);
         };
 
     }, [restroId, tableId]);

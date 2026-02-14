@@ -20,6 +20,10 @@ export default function LoginPage() {
 
     // Redirect if already authenticated
     useEffect(() => {
+        document.title = "Login | Smart Serve";
+    }, []);
+
+    useEffect(() => {
         if (!authLoading && isAuthenticated) {
             router.push('/');
         }

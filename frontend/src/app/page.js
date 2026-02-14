@@ -343,6 +343,11 @@ const Footer = () => (
 
 export default function Home() {
   const { checkAuth } = useAuthStore();
+
+  useEffect(() => {
+    document.title = "Smart Serve | Restaurant Management";
+  }, []);
+
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);

@@ -6,7 +6,7 @@ import useAuthStore from "@/store/useAuthStore";
 import useRestaurantStore from "@/store/useRestaurantStore";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { Loader2 } from "lucide-react";
-import { getSocket } from "@/lib/socket";
+import socketService from "@/services/socketService";
 
 function RestaurantLayoutContent({ children }) {
     const params = useParams();
@@ -23,6 +23,15 @@ function RestaurantLayoutContent({ children }) {
 
     const restaurantId = params.id;
     const currentRestaurant = restaurants.find(r => r._id === restaurantId);
+
+    // Set Title
+    useEffect(() => {
+        if (currentRestaurant) {
+            document.title = `${currentRestaurant.name} | Dashboard`;
+        } else {
+            document.title = "Restaurant Dashboard | Smart Serve";
+        }
+    }, [currentRestaurant]);
 
     // Prevent double fetch in StrictMode
     const hasFetched = React.useRef(false);
@@ -48,8 +57,8 @@ function RestaurantLayoutContent({ children }) {
     useEffect(() => {
         if (!restaurantId || !user) return;
 
-        const socket = getSocket();
-        socket.emit("join_staff_room", { restaurantId, userId: user._id });
+        socketService.connect();
+        socketService.joinStaffRoom(restaurantId, user._id);
 
         const handleNewOrder = (newOrder) => {
             const currentData = useRestaurantStore.getState().dashboardData[restaurantId] || {};
@@ -73,16 +82,6 @@ function RestaurantLayoutContent({ children }) {
                 updated = [updatedOrder, ...currentOrders];
             }
             setDashboardData(restaurantId, { activeOrders: updated });
-        };
-
-        const handleTableUpdate = (data) => {
-            // "table_update" sends { tableId, isOccupied: true, currentOrderId: '...' }
-            if (data && data.tableId) {
-                updateTableStatus(restaurantId, data.tableId, data);
-            } else {
-                // Fallback if no specific data
-                fetchRestaurantById(restaurantId, true);
-            }
         };
 
         const handleTableFreed = (data) => {
@@ -120,25 +119,20 @@ function RestaurantLayoutContent({ children }) {
             if (staffId) setStaffActiveStatus(restaurantId, staffId, isActive);
         };
 
-        socket.on("new_order", handleNewOrder);
-        socket.on("order_update", handleOrderUpdate);
-
-        // Table Updates
-        socket.on("table_update", handleTableUpdate);
-        socket.on("table_freed", handleTableFreed);
-        socket.on("table_service_update", handleTableServiceUpdate);
-        socket.on("table_bill_update", handleTableBillUpdate);
-
-        socket.on("staff_update", handleStaffUpdate);
+        socketService.onNewOrder(handleNewOrder);
+        socketService.onOrderUpdate(handleOrderUpdate);
+        socketService.onTableFreed(handleTableFreed);
+        socketService.onTableServiceUpdate(handleTableServiceUpdate);
+        socketService.onTableBillUpdate(handleTableBillUpdate);
+        socketService.onStaffUpdate(handleStaffUpdate);
 
         return () => {
-            socket.off("new_order", handleNewOrder);
-            socket.off("order_update", handleOrderUpdate);
-            socket.off("table_update", handleTableUpdate);
-            socket.off("table_freed", handleTableFreed);
-            socket.off("table_service_update", handleTableServiceUpdate);
-            socket.off("table_bill_update", handleTableBillUpdate);
-            socket.off("staff_update", handleStaffUpdate);
+            socketService.offNewOrder(handleNewOrder);
+            socketService.offOrderUpdate(handleOrderUpdate);
+            socketService.offTableFreed(handleTableFreed);
+            socketService.offTableServiceUpdate(handleTableServiceUpdate);
+            socketService.offTableBillUpdate(handleTableBillUpdate);
+            socketService.offStaffUpdate(handleStaffUpdate);
         };
     }, [restaurantId, user, setDashboardData, fetchRestaurantById, setStaffActiveStatus, updateTableStatus]);
 
