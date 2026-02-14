@@ -348,9 +348,7 @@ export default function Home() {
     document.title = "Smart Serve | Restaurant Management";
   }, []);
 
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+
 
   return (
     <div className="min-h-screen font-sans bg-background transition-colors duration-300">

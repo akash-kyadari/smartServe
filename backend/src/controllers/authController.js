@@ -15,10 +15,15 @@ export const generateToken = (id, roles) => {
 };
 
 export const setTokenCookie = (res, token) => {
+  const isProduction = process.env.NODE_ENV === "production";
+  const isDev = process.env.NODE_ENV === "development";
+
+  // For cross-site cookies (Render to Netlify/Localhost), we NEED sameSite: "none" and secure: true
+  // Even in development, if we are hitting a remote backend, we need these.
   res.cookie("jwt", token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV !== "development", // Use secure cookies in production
-    sameSite: "strict",
+    secure: true, // Required for sameSite: "none"
+    sameSite: "none",
     maxAge: 24 * 60 * 60 * 1000, // 1 day
   });
 };
@@ -192,6 +197,8 @@ export const logoutUser = (req, res) => {
   try {
     res.cookie("jwt", "", {
       httpOnly: true,
+      secure: true,
+      sameSite: "none",
       expires: new Date(0),
     });
     res.status(200).json({ message: "Logout successful" });

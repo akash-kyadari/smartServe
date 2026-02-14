@@ -29,7 +29,11 @@ export const protect = async (req, res, next) => {
             console.error("JWT Verification failed:", error.message);
             // Clear the cookie if it's invalid
             if (req.cookies.jwt) {
-                res.clearCookie("jwt");
+                res.clearCookie("jwt", {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: "none"
+                });
             }
             return res.status(401).json({ message: "Not authorized, token failed" });
         }

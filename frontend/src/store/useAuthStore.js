@@ -3,9 +3,10 @@ import useRestaurantStore from './useRestaurantStore';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL + '/api/auth';
 
-const useAuthStore = create((set) => ({
+const useAuthStore = create((set, get) => ({
     user: null,
     isAuthenticated: false,
+    isCheckingAuth: false,
     error: null,
     isLoading: true, // Start true to prevent premature redirects while checking auth
 
@@ -80,7 +81,10 @@ const useAuthStore = create((set) => ({
     },
 
     checkAuth: async () => {
-        set({ isLoading: true });
+        // Prevent multiple simultaneous auth checks
+        if (get().isCheckingAuth) return;
+
+        set({ isCheckingAuth: true, isLoading: true });
         try {
             const response = await fetch(`${API_URL}/me`, {
                 credentials: 'include',
@@ -89,10 +93,9 @@ const useAuthStore = create((set) => ({
             if (!response.ok) {
                 throw new Error(data.message);
             }
-            console.log(data.user);
-            set({ user: data.user, isAuthenticated: true, isLoading: false });
+            set({ user: data.user, isAuthenticated: true, isLoading: false, isCheckingAuth: false });
         } catch (error) {
-            set({ user: null, isAuthenticated: false, isLoading: false });
+            set({ user: null, isAuthenticated: false, isLoading: false, isCheckingAuth: false });
         }
     },
 
