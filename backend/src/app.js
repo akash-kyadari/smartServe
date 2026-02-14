@@ -26,7 +26,11 @@ app.use(compression());
 
 // Core Middleware (CORS must be first to handle preflights and errors correctly)
 app.use(cors({
-  origin: [process.env.FRONTEND_URL, "http://localhost:3000"],
+  origin: [
+    process.env.FRONTEND_URL,
+    "http://localhost:3000",
+    "https://smart-serve-app.netlify.app"
+  ],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   credentials: true
 }));
