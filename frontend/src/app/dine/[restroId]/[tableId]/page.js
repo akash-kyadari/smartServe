@@ -588,18 +588,34 @@ export default function TablePage({ params }) {
                                             <ShoppingBag size={18} /> Bill Summary
                                         </h3>
                                         <div className="space-y-3 text-sm">
-                                            <div className="flex justify-between text-muted-foreground">
-                                                <span>Orders Total ({activeOrders.length})</span>
-                                                <span>₹{activeOrders.reduce((acc, o) => acc + (o.totalAmount || 0), 0)}</span>
-                                            </div>
-                                            <div className="flex justify-between text-muted-foreground">
-                                                <span>Taxes & Charges (5%)</span>
-                                                <span>₹{Math.round(activeOrders.reduce((acc, o) => acc + (o.totalAmount || 0), 0) * 0.05)}</span>
-                                            </div>
-                                            <div className="border-t border-dashed border-border pt-3 mt-2 flex justify-between text-xl font-black text-foreground">
-                                                <span>Total Payable</span>
-                                                <span>₹{Math.round(activeOrders.reduce((acc, o) => acc + (o.totalAmount || 0), 0) * 1.05)}</span>
-                                            </div>
+                                            {(() => {
+                                                const totalBase = activeOrders.reduce((acc, o) => acc + (o.totalAmount || 0), 0);
+                                                const paidBase = activeOrders.filter(o => o.status === 'PAID' || o.paymentStatus === 'PAID').reduce((acc, o) => acc + (o.totalAmount || 0), 0);
+                                                const unpaidBase = totalBase - paidBase;
+
+                                                const totalWithTax = Math.round(totalBase * 1.05);
+                                                const paidWithTax = Math.round(paidBase * 1.05);
+                                                const payable = totalWithTax - paidWithTax;
+
+                                                return (
+                                                    <>
+                                                        <div className="flex justify-between text-muted-foreground">
+                                                            <span>Session Total (incl. tax)</span>
+                                                            <span>₹{totalWithTax}</span>
+                                                        </div>
+                                                        {paidWithTax > 0 && (
+                                                            <div className="flex justify-between text-emerald-600 font-medium">
+                                                                <span>Previously Paid</span>
+                                                                <span>-₹{paidWithTax}</span>
+                                                            </div>
+                                                        )}
+                                                        <div className="border-t border-dashed border-border pt-3 mt-2 flex justify-between text-xl font-black text-foreground">
+                                                            <span>Bill Payable</span>
+                                                            <span>₹{payable}</span>
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
                                         {!allPaid && (
                                             <button

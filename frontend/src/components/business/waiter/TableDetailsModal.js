@@ -18,6 +18,9 @@ export default function TableDetailsModal({
     // Filter Active Orders for this table (excluding closed sessions)
     const activeTableOrders = orders.filter(o => o.tableId === table.id && o.status !== 'COMPLETED' && !o.isSessionClosed);
     const totalAmount = activeTableOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const paidAmount = activeTableOrders.filter(o => o.status === 'PAID').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const billPayable = totalAmount - paidAmount;
+
     const hasUnpaid = activeTableOrders.some(o => o.status !== 'PAID');
     // "All Paid" is true if there are orders and ALL are paid
     const allPaid = activeTableOrders.length > 0 && activeTableOrders.every(o => o.status === 'PAID');
@@ -186,9 +189,21 @@ export default function TableDetailsModal({
                 {/* Footer Actions */}
                 <div className="p-4 bg-card border-t border-border shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.1)] shrink-0 space-y-3">
                     {activeTableOrders.length > 0 && (
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-muted-foreground font-medium">Total Bill</span>
-                            <span className="text-2xl font-bold">₹{totalAmount}</span>
+                        <div className="space-y-1.5 mb-2 border-b border-border/50 pb-3">
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-muted-foreground font-medium">Total Bill</span>
+                                <span className="font-bold">₹{totalAmount}</span>
+                            </div>
+                            {paidAmount > 0 && (
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-emerald-600 font-medium">Previously Paid</span>
+                                    <span className="font-bold text-emerald-600">-₹{paidAmount}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between items-center">
+                                <span className="text-foreground font-bold">Bill Payable</span>
+                                <span className="text-2xl font-black text-sunset">₹{billPayable}</span>
+                            </div>
                         </div>
                     )}
 

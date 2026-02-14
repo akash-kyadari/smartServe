@@ -399,34 +399,62 @@ export default function RestaurantDashboard() {
                                         <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
                                             <Utensils size={14} /> Active Orders
                                         </h4>
-                                        {orders.filter(o => o.tableId === selectedTable._id && !o.isSessionClosed && o.status !== 'COMPLETED').length > 0 ? (
-                                            <div className="space-y-3">
-                                                {orders.filter(o => o.tableId === selectedTable._id && !o.isSessionClosed && o.status !== 'COMPLETED').map(order => (
-                                                    <div key={order._id} className="bg-secondary/20 border border-border rounded-lg p-3 text-sm">
-                                                        <div className="flex justify-between items-start mb-2">
-                                                            <span className="font-mono text-xs text-muted-foreground">#{order._id.slice(-4)}</span>
-                                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${order.status === 'PLACED' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                                                                {order.status}
-                                                            </span>
+                                        {(() => {
+                                            const activeOrders = orders.filter(o => o.tableId === selectedTable._id && !o.isSessionClosed && o.status !== 'COMPLETED');
+                                            if (activeOrders.length === 0) return <p className="text-sm text-muted-foreground">No active orders found for this session.</p>;
+
+                                            const total = activeOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+                                            const paid = activeOrders.filter(o => o.status === 'PAID').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+                                            const payable = total - paid;
+
+                                            return (
+                                                <div className="space-y-3">
+                                                    {activeOrders.map(order => (
+                                                        <div key={order._id} className="bg-secondary/20 border border-border rounded-lg p-3 text-sm transition-colors hover:bg-secondary/30">
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <span className="font-mono text-xs text-muted-foreground">#{order._id.slice(-4)}</span>
+                                                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${order.status === 'PLACED' ? 'bg-blue-100 text-blue-700' :
+                                                                        order.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' :
+                                                                            'bg-orange-100 text-orange-700'
+                                                                    }`}>
+                                                                    {order.status}
+                                                                </span>
+                                                            </div>
+                                                            <div className="space-y-1 mb-2">
+                                                                {order.items.map((item, idx) => (
+                                                                    <div key={idx} className="flex justify-between">
+                                                                        <span>{item.quantity}x {item.name}</span>
+                                                                        <span className="font-medium">₹{item.price * item.quantity}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <div className="border-t border-border/50 pt-2 flex justify-between font-bold">
+                                                                <span>Order Total</span>
+                                                                <span>₹{order.totalAmount}</span>
+                                                            </div>
                                                         </div>
-                                                        <div className="space-y-1 mb-2">
-                                                            {order.items.map((item, idx) => (
-                                                                <div key={idx} className="flex justify-between">
-                                                                    <span>{item.quantity}x {item.name}</span>
-                                                                    <span className="font-medium">₹{item.price * item.quantity}</span>
-                                                                </div>
-                                                            ))}
+                                                    ))}
+
+                                                    {/* Session Summary */}
+                                                    <div className="bg-card border-2 border-sunset/20 rounded-xl p-4 shadow-sm space-y-2 mt-4">
+                                                        <div className="flex justify-between items-center text-sm">
+                                                            <span className="text-muted-foreground">Session Total</span>
+                                                            <span className="font-bold">₹{total}</span>
                                                         </div>
-                                                        <div className="border-t border-border/50 pt-2 flex justify-between font-bold">
-                                                            <span>Total</span>
-                                                            <span>₹{order.totalAmount}</span>
+                                                        {paid > 0 && (
+                                                            <div className="flex justify-between items-center text-sm">
+                                                                <span className="text-emerald-600">Previously Paid</span>
+                                                                <span className="font-bold text-emerald-600">-₹{paid}</span>
+                                                            </div>
+                                                        )}
+                                                        <div className="flex justify-between items-center pt-2 border-t border-border">
+                                                            <span className="font-bold">Bill Payable</span>
+                                                            <span className="text-xl font-black text-sunset">₹{payable}</span>
                                                         </div>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p className="text-sm text-muted-foreground">No active orders found for this session.</p>
-                                        )}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 )}
                             </div>

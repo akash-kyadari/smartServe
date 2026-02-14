@@ -213,7 +213,7 @@ export const getBookings = async (req, res) => {
                     { startTime: { $lte: startTime }, endTime: { $gte: reqEndStr } }
                 ];
             }
-            query.status = { $ne: 'cancelled' };
+            // query.status = { $ne: 'cancelled' }; // Removed so owners can see cancelled bookings
         } else {
             query.userId = req.user._id;
         }
