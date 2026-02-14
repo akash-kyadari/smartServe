@@ -42,12 +42,20 @@ const StaffCard = React.memo(({ staff, stats, onRemove, onChangePassword, onTogg
                     </div>
                     <div>
                         <h3 className="font-semibold text-gray-900 dark:text-white">{staffName}</h3>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${staff.role === 'manager' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' :
-                            staff.role === 'kitchen' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' :
-                                'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                            }`}>
-                            {staff.role}
-                        </span>
+                        <div className="flex items-center gap-1.5 mt-1">
+                            <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-black tracking-wider ${staff.role === 'manager' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' :
+                                staff.role === 'kitchen' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' :
+                                    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                }`}>
+                                {staff.role}
+                            </span>
+                            <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-black tracking-wider border ${staff.authProvider === 'google'
+                                ? 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800'
+                                : 'bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800/20 dark:text-gray-400 dark:border-gray-700'
+                                }`}>
+                                {staff.authProvider === 'google' ? 'Google' : 'Pass'}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -75,12 +83,14 @@ const StaffCard = React.memo(({ staff, stats, onRemove, onChangePassword, onTogg
                                     >
                                         <Clock size={16} /> {active ? "Mark Offline" : "Mark Online"}
                                     </button>
-                                    <button
-                                        onClick={() => { setIsMenuOpen(false); onChangePassword(staff); }}
-                                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center gap-2"
-                                    >
-                                        <Key size={16} /> Change Password
-                                    </button>
+                                    {(staff.authProvider === 'local' || !staff.authProvider) && (
+                                        <button
+                                            onClick={() => { setIsMenuOpen(false); onChangePassword(staff); }}
+                                            className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-slate-800 flex items-center gap-2"
+                                        >
+                                            <Key size={16} /> Change Password
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => { setIsMenuOpen(false); onRemove(staffId); }}
                                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-red-50 dark:hover:bg-red-900/10 text-red-600 dark:text-red-400 flex items-center gap-2"
@@ -149,7 +159,8 @@ const AddStaffModal = ({ isOpen, onClose, onSubmit, isLoading }) => {
         password: "",
         role: "waiter",
         shiftStart: "09:00",
-        shiftEnd: "17:00"
+        shiftEnd: "17:00",
+        loginType: "local" // "local" or "google"
     });
     const [error, setError] = useState(null);
 
@@ -161,7 +172,8 @@ const AddStaffModal = ({ isOpen, onClose, onSubmit, isLoading }) => {
                 password: "",
                 role: "waiter",
                 shiftStart: "09:00",
-                shiftEnd: "17:00"
+                shiftEnd: "17:00",
+                loginType: "local"
             });
             setError(null);
         }
@@ -178,7 +190,12 @@ const AddStaffModal = ({ isOpen, onClose, onSubmit, isLoading }) => {
         e.preventDefault();
         setError(null);
         try {
-            await onSubmit(formData);
+            // If loginType is google, we don't send the password
+            const submissionData = { ...formData };
+            if (formData.loginType === 'google') {
+                delete submissionData.password;
+            }
+            await onSubmit(submissionData);
         } catch (err) {
             setError(err.message || "Failed to add staff member");
         }
@@ -211,6 +228,23 @@ const AddStaffModal = ({ isOpen, onClose, onSubmit, isLoading }) => {
                         </motion.div>
                     )}
 
+                    <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 dark:bg-slate-800 rounded-lg">
+                        <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, loginType: 'local' })}
+                            className={`py-2 text-xs font-bold rounded-md transition-all ${formData.loginType === 'local' ? 'bg-white dark:bg-slate-700 shadow-sm text-sunset' : 'text-gray-500'}`}
+                        >
+                            Email & Password
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, loginType: 'google' })}
+                            className={`py-2 text-xs font-bold rounded-md transition-all ${formData.loginType === 'google' ? 'bg-white dark:bg-slate-700 shadow-sm text-sunset' : 'text-gray-500'}`}
+                        >
+                            Google Auth
+                        </button>
+                    </div>
+
                     <div>
                         <label className="block text-sm font-medium mb-1">Full Name</label>
                         <input
@@ -231,16 +265,26 @@ const AddStaffModal = ({ isOpen, onClose, onSubmit, isLoading }) => {
                             placeholder="staff@example.com"
                         />
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Password</label>
-                        <input
-                            type="password" name="password" required minLength={6}
-                            autoComplete="new-password"
-                            value={formData.password} onChange={handleChange}
-                            className="w-full bg-gray-100 dark:bg-slate-800 border border-transparent focus:border-sunset rounded-lg px-3 py-2 text-sm focus:outline-none transition-colors"
-                            placeholder="******"
-                        />
-                    </div>
+                    {formData.loginType === 'local' && (
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Password</label>
+                            <input
+                                type="password" name="password" required minLength={6}
+                                autoComplete="new-password"
+                                value={formData.password} onChange={handleChange}
+                                className="w-full bg-gray-100 dark:bg-slate-800 border border-transparent focus:border-sunset rounded-lg px-3 py-2 text-sm focus:outline-none transition-colors"
+                                placeholder="******"
+                            />
+                        </div>
+                    )}
+                    {formData.loginType === 'google' && (
+                        <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-lg border border-blue-100 dark:border-blue-900/30">
+                            <p className="text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
+                                <Shield size={14} className="shrink-0 mt-0.5" />
+                                Staff member will be able to log in using their Google account associated with this email. No password setup required.
+                            </p>
+                        </div>
+                    )}
                     <div>
                         <label className="block text-sm font-medium mb-1">Role</label>
                         <select

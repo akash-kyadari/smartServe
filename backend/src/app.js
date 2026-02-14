@@ -13,6 +13,7 @@ import bookingRouter from "./routers/bookingRouter.js";
 import connectDB from "./db.js";
 import { app, server } from "./socket/socket.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
+import passport from "./utils/passport.js";
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(passport.initialize());
 
 // Rate Limiting (10 requests per 1 min)
 const limiter = rateLimit({

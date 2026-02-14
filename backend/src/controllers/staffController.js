@@ -13,8 +13,8 @@ export const addStaff = async (req, res) => {
         const { name, email, password, role, shiftStart, shiftEnd } = req.body;
 
         // Validation
-        if (!name || !email || !password || !role) {
-            return res.status(400).json({ success: false, message: "All fields are required" });
+        if (!name || !email || !role) {
+            return res.status(400).json({ success: false, message: "Name, email and role are required" });
         }
 
         const restaurant = await Restaurant.findById(id);
@@ -36,8 +36,14 @@ export const addStaff = async (req, res) => {
             });
         }
 
-        // Create new User
-        const hashedPassword = await bcrypt.hash(password, 10);
+        // Determine auth provider and password
+        let hashedPassword = null;
+        let authProvider = "google"; // Default to google if no password provided
+
+        if (password) {
+            hashedPassword = await bcrypt.hash(password, 10);
+            authProvider = "local";
+        }
 
         // Ensure role is valid
         const validRoles = ["manager", "waiter", "kitchen", "staff"];
@@ -49,6 +55,7 @@ export const addStaff = async (req, res) => {
             name,
             email,
             password: hashedPassword,
+            authProvider,
             roles: [role], // Array of roles
             workingAt: [{
                 restaurantId: restaurant._id,
@@ -132,7 +139,7 @@ export const getStaff = async (req, res) => {
         const { id } = req.params;
         const restaurant = await Restaurant.findById(id).populate({
             path: 'staff.user',
-            select: 'name email phone avatar'
+            select: 'name email phone avatar authProvider'
         });
 
         if (!restaurant) {
@@ -146,6 +153,7 @@ export const getStaff = async (req, res) => {
                 _id: member.user._id,
                 name: member.user.name,
                 email: member.user.email,
+                authProvider: member.user.authProvider,
                 role: member.role,
                 shift: member.shift,
                 isActive: member.isActive && isConnected, // Only active if online AND set to active

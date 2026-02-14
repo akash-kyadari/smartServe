@@ -26,7 +26,11 @@ export const protect = async (req, res, next) => {
 
             next();
         } catch (error) {
-            console.error(error);
+            console.error("JWT Verification failed:", error.message);
+            // Clear the cookie if it's invalid
+            if (req.cookies.jwt) {
+                res.clearCookie("jwt");
+            }
             return res.status(401).json({ message: "Not authorized, token failed" });
         }
     } catch (error) {
@@ -69,9 +73,10 @@ export const optionalProtect = async (req, res, next) => {
             next();
         } catch (error) {
             // Token invalid or expired, proceed without user (treat as guest)
-            // Or should we fail? Usually optionalProtect means "if valid token use it, else ignore"
-            // If token is BAD, maybe we should ignore it.
             console.error("Optional Protect: Token failed verification", error.message);
+            if (req.cookies.jwt) {
+                res.clearCookie("jwt");
+            }
             next();
         }
     } catch (error) {

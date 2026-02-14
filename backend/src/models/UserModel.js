@@ -29,9 +29,17 @@ const UserSchema = new mongoose.Schema(
         // =====================
         // AUTH
         // =====================
+        googleId: {
+            type: String,
+            unique: true,
+            sparse: true, // Allows multiple null/missing values
+        },
+
         password: {
             type: String,
-            required: true,
+            required: function () {
+                return this.authProvider === "local";
+            },
             select: false,
         },
 

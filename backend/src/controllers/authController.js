@@ -8,13 +8,13 @@ const isValidEmail = (email) => {
   return re.test(email);
 };
 
-const generateToken = (id, roles) => {
+export const generateToken = (id, roles) => {
   return jwt.sign({ id, roles }, process.env.JWT_SECRET || "default_secret_key", {
     expiresIn: "1d",
   });
 };
 
-const setTokenCookie = (res, token) => {
+export const setTokenCookie = (res, token) => {
   res.cookie("jwt", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV !== "development", // Use secure cookies in production
@@ -115,6 +115,12 @@ export const loginUser = async (req, res) => {
     }
 
     // Verify password
+    if (user.authProvider !== "local") {
+      return res.status(400).json({
+        message: `This account uses ${user.authProvider} login. Please use the "Continue with ${user.authProvider.charAt(0).toUpperCase() + user.authProvider.slice(1)}" button.`
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials" });
@@ -195,5 +201,41 @@ export const getCurrentUser = async (req, res) => {
       .json({ message: "Error retrieving user", error: error.message });
   }
 };
+// Google Auth Callback handler
+export const googleAuthCallback = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:3000"}/login?error=Google auth failed`);
+    }
 
+    // Generate token
+    const token = generateToken(req.user._id, req.user.roles);
 
+    // Set cookie
+    setTokenCookie(res, token);
+
+    // Default redirect based on role
+    const isStaffRole = req.user.roles.some(role => ["owner", "manager", "waiter", "kitchen", "admin"].includes(role));
+    let redirectPath = isStaffRole ? "/business" : "/";
+
+    // Override if state is provided
+    if (req.query.state) {
+      try {
+        const state = JSON.parse(Buffer.from(req.query.state, "base64").toString());
+        if (state.from === "staff") {
+          redirectPath = "/business";
+        } else if (state.from === "customer") {
+          redirectPath = "/";
+        }
+      } catch (e) {
+        logger.error("Error parsing Google OAuth state:", e.message);
+      }
+    }
+
+    // Redirect to frontend
+    res.redirect(`${process.env.FRONTEND_URL || "http://localhost:3000"}${redirectPath}`);
+  } catch (error) {
+    logger.error("Error in googleAuthCallback:", error.message);
+    res.redirect(`${process.env.FRONTEND_URL || "http://localhost:3000"}/login?error=Internal server error`);
+  }
+};
