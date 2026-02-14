@@ -11,7 +11,7 @@ import useRestaurantsListStore from "@/store/useRestaurantsListStore";
 import useAuthStore from "@/store/useAuthStore";
 import socketService from "@/services/socketService";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") + "/api";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL) + "/api";
 
 const BookingModal = React.memo(({ restaurant, onClose }) => {
     const { user } = useAuthStore();
@@ -24,6 +24,7 @@ const BookingModal = React.memo(({ restaurant, onClose }) => {
     const [bookedTables, setBookedTables] = useState([]);
 
     // Use bookings store
+    const router = useRouter();
     const { createBooking } = useBookingsStore();
 
     // Use refs for form inputs that don't need to trigger re-renders
@@ -34,9 +35,17 @@ const BookingModal = React.memo(({ restaurant, onClose }) => {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
+    // Helper to format date as YYYY-MM-DD in LOCAL time
+    const toLocalDateString = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     const dateOptions = [
-        { id: "today", label: "Today", date: today.toISOString().split('T')[0], display: today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
-        { id: "tomorrow", label: "Tomorrow", date: tomorrow.toISOString().split('T')[0], display: tomorrow.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }
+        { id: "today", label: "Today", date: toLocalDateString(today), display: today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
+        { id: "tomorrow", label: "Tomorrow", date: toLocalDateString(tomorrow), display: tomorrow.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }
     ];
 
     // Generate time slots and filter based on selected date
@@ -231,13 +240,16 @@ const BookingModal = React.memo(({ restaurant, onClose }) => {
     const fetchBookedTables = async () => {
         try {
             const dateObj = dateOptions.find(d => d.id === selectedDate);
+            const token = localStorage.getItem('token');
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
             const response = await axios.get(`${API_URL}/bookings`, {
                 params: {
                     restaurantId: restaurant._id,
                     date: dateObj.date,
                     startTime: selectedTime
                 },
-                withCredentials: true
+                withCredentials: true,
+                headers
             });
 
             // "bookings" now includes both confirmed and locked tables
@@ -263,6 +275,8 @@ const BookingModal = React.memo(({ restaurant, onClose }) => {
 
         const isSelected = selectedTables.includes(tableId);
         const dateObj = dateOptions.find(d => d.id === selectedDate);
+        const token = localStorage.getItem('token');
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
         if (isSelected) {
             // DESELECT -> Unlock
@@ -273,7 +287,7 @@ const BookingModal = React.memo(({ restaurant, onClose }) => {
                     tableId,
                     date: dateObj.date,
                     startTime: selectedTime
-                }, { withCredentials: true });
+                }, { withCredentials: true, headers });
             } catch (err) {
                 console.error("Unlock failed", err);
             }
@@ -288,13 +302,21 @@ const BookingModal = React.memo(({ restaurant, onClose }) => {
                     tableId,
                     date: dateObj.date,
                     startTime: selectedTime
-                }, { withCredentials: true });
+                }, { withCredentials: true, headers });
             } catch (err) {
-                // Lock failed (conflict)
+                // Lock failed
                 console.error("Lock failed", err);
                 setSelectedTables(prev => prev.filter(id => id !== tableId)); // Revert
-                alert("This table was just selected by someone else.");
-                setLockedTables(prev => [...prev, tableId]);
+
+                if (err.response?.status === 409) {
+                    alert("This table was just selected by someone else.");
+                    setLockedTables(prev => [...prev, tableId]);
+                } else if (err.response?.status === 401) {
+                    alert("Please login to book a table.");
+                    // Optional: Redirect to login
+                } else {
+                    alert("Failed to lock table. Please try again.");
+                }
             }
         }
     };
@@ -336,8 +358,8 @@ const BookingModal = React.memo(({ restaurant, onClose }) => {
             await Promise.all(bookingPromises);
             setSuccess(true);
             setTimeout(() => {
-                window.location.href = '/bookings';
-            }, 1500);
+                router.push('/bookings');
+            }, 1000);
         } catch (err) {
             setError(err.message || "Failed to create booking");
         } finally {
@@ -575,6 +597,7 @@ BookingModal.displayName = 'BookingModal';
 export default function RestaurantDetails() {
     const { id } = useParams();
     const router = useRouter();
+    const { isAuthenticated } = useAuthStore();
     const [restaurant, setRestaurant] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("menu");
@@ -698,7 +721,13 @@ export default function RestaurantDetails() {
                                 <p className="text-sm text-gray-600 dark:text-gray-400">Reserve your table for today or tomorrow</p>
                             </div>
                             <button
-                                onClick={() => setShowBooking(true)}
+                                onClick={() => {
+                                    if (!isAuthenticated) {
+                                        router.push('/login');
+                                        return;
+                                    }
+                                    setShowBooking(true);
+                                }}
                                 className="bg-indigo-600 dark:bg-indigo-500 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors flex items-center gap-2"
                             >
                                 <Calendar className="h-4 w-4" />

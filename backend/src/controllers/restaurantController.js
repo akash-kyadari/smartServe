@@ -1,7 +1,8 @@
 import Restaurant from "../models/RestaurantModel.js";
 import User from "../models/UserModel.js";
 import Order from "../models/OrderModel.js"; // Import Order model
-import { io } from "../socket/socket.js";
+import { io, isUserConnected } from "../socket/socket.js";
+import logger from "../utils/logger.js";
 
 // Create a new restaurant
 export const createRestaurant = async (req, res) => {
@@ -107,7 +108,7 @@ export const createRestaurant = async (req, res) => {
             restaurant: savedRestaurant,
         });
     } catch (error) {
-        console.log("Error in createRestaurant:", error.message);
+        logger.error("Error in createRestaurant:", error.message);
         if (error.code === 11000) {
             return res.status(400).json({ success: false, message: "Restaurant with this GST Number already exists" });
         }
@@ -127,9 +128,24 @@ export const getMyRestaurants = async (req, res) => {
             path: 'staff.user',
             select: 'name email avatar'
         });
-        res.status(200).json({ success: true, restaurants });
+        // Compute status for each restaurant's staff
+        const restaurantsWithStatus = restaurants.map(r => {
+            const rObj = r.toObject();
+            if (rObj.staff) {
+                rObj.staff = rObj.staff.map(member => {
+                    if (member.user) {
+                        const isConnected = isUserConnected(rObj._id, member.user._id);
+                        member.isActive = member.isActive && isConnected;
+                    }
+                    return member;
+                });
+            }
+            return rObj;
+        });
+
+        res.status(200).json({ success: true, restaurants: restaurantsWithStatus });
     } catch (error) {
-        console.log("Error in getMyRestaurants:", error.message);
+        logger.error("Error in getMyRestaurants:", error.message);
         res.status(500).json({ success: false, message: "Error fetching restaurants", error: error.message });
     }
 };
@@ -144,9 +160,32 @@ export const getRestaurantById = async (req, res) => {
         if (!restaurant) {
             return res.status(404).json({ success: false, message: "Restaurant not found" });
         }
-        res.status(200).json({ success: true, restaurant });
+
+        // Convert to object to modify staff status
+        const restaurantObj = restaurant.toObject();
+
+        // Compute active status for staff based on socket connection
+        if (restaurantObj.staff) {
+            // Check Access: User must be Owner or Staff
+            const isOwner = restaurantObj.owner.toString() === req.user._id.toString();
+            const isStaff = restaurantObj.staff.some(s => s.user && s.user._id.toString() === req.user._id.toString());
+
+            if (!isOwner && !isStaff) {
+                return res.status(403).json({ success: false, message: "Not authorized to view this restaurant" });
+            }
+
+            restaurantObj.staff = restaurantObj.staff.map(member => {
+                if (member.user) {
+                    const isConnected = isUserConnected(req.params.id, member.user._id);
+                    member.isActive = member.isActive && isConnected;
+                }
+                return member;
+            });
+        }
+
+        res.status(200).json({ success: true, restaurant: restaurantObj });
     } catch (error) {
-        console.log("Error in getRestaurantById:", error.message);
+        logger.error("Error in getRestaurantById:", error.message);
         res.status(500).json({ success: false, message: "Error fetching restaurant", error: error.message });
     }
 };
@@ -194,7 +233,7 @@ export const updateRestaurant = async (req, res) => {
             restaurant: updatedRestaurant,
         });
     } catch (error) {
-        console.log("Error in updateRestaurant:", error.message);
+        logger.error("Error in updateRestaurant:", error.message);
         res.status(500).json({ success: false, message: "Error updating restaurant", error: error.message });
     }
 };
@@ -447,7 +486,7 @@ export const getRestaurantAnalytics = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Analytics Error:", error);
+        logger.error("Analytics Error:", error);
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 };

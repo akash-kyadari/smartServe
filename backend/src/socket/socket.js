@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: ["http://localhost:5173", "http://localhost:3000"], // Allow frontend
+        origin: [process.env.FRONTEND_URL], // Allow frontend
         methods: ["GET", "POST"],
     },
 });
@@ -38,6 +38,22 @@ io.on("connection", (socket) => {
             // Join a private user room to track active tabs
             socket.join(`user_${userId}`);
             console.log(`Socket ${socket.id} joined user room: user_${userId}`);
+
+            // Emit online status if DB says they are active
+            try {
+                const restaurant = await Restaurant.findById(restroId);
+                if (restaurant) {
+                    const staffMember = restaurant.staff.find(s => s.user.toString() === userId);
+                    if (staffMember && staffMember.isActive) {
+                        io.to(`restro_staff_${restroId}`).emit("staff_update", {
+                            staffId: userId,
+                            isActive: true
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching status on join:", err);
+            }
         }
     });
 
@@ -58,9 +74,44 @@ io.on("connection", (socket) => {
     socket.on("disconnect", async () => {
         console.log("User disconnected:", socket.id);
 
-        // removed auto-offline logic on disconnect to prevent status flickering on refresh
-        // Users must create explicit "Go Offline" action or rely on session timeout (future improvement)
+        if (socket.userId && socket.restroId) {
+            const roomId = `restro_staff_${socket.restroId}`;
+            const room = io.sockets.adapter.rooms.get(roomId);
+            let stillConnected = false;
+
+            if (room) {
+                for (const sid of room) {
+                    const s = io.sockets.sockets.get(sid);
+                    if (s && s.userId === socket.userId) {
+                        stillConnected = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!stillConnected) {
+                // If no other sessions, emit offline status (view-only change)
+                io.to(roomId).emit("staff_update", {
+                    staffId: socket.userId,
+                    isActive: false
+                });
+            }
+        }
     });
 });
 
-export { app, io, server };
+// Helper to check if user is connected
+const isUserConnected = (restaurantId, userId) => {
+    const roomId = `restro_staff_${restaurantId}`;
+    const room = io.sockets.adapter.rooms.get(roomId);
+    if (!room) return false;
+    for (const socketId of room) {
+        const socket = io.sockets.sockets.get(socketId);
+        if (socket && socket.userId === userId.toString()) {
+            return true;
+        }
+    }
+    return false;
+};
+
+export { app, io, server, isUserConnected };

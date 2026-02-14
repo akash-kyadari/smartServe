@@ -2,7 +2,8 @@ import Order from "../models/OrderModel.js";
 import mongoose from "mongoose";
 import Restaurant from "../models/RestaurantModel.js";
 import Booking from "../models/BookingModel.js";
-import { io } from "../socket/socket.js"; // Import Booking model
+import { io } from "../socket/socket.js";
+import logger from "../utils/logger.js";
 
 // Place Order
 export const placeOrder = async (req, res) => {
@@ -69,6 +70,55 @@ export const placeOrder = async (req, res) => {
         }
         // ---------------------------------------------------------------------
 
+        // 📦 STOCK & AVAILABILITY CHECK 📦
+        for (const item of items) {
+            const menuItem = restaurant.menu.id(item.menuItemId || item._id); // Handle both formats if possible, but schema says menuItemId
+
+            if (!menuItem) {
+                // Skip if not found? Or strict error? Smart apps should error.
+                // return res.status(400).json({ message: `Item not found in menu: ${item.name}` });
+                continue; // Skip for robustness, maybe custom item
+            }
+
+            if (!menuItem.isAvailable) {
+                return res.status(400).json({ message: `Item is currently unavailable: ${item.name}` });
+            }
+
+            if (menuItem.stock !== null && menuItem.stock !== undefined) {
+                if (menuItem.stock < item.quantity) {
+                    return res.status(400).json({
+                        message: `Insufficient stock for ${item.name}. Only ${menuItem.stock} left.`
+                    });
+                }
+            }
+        }
+
+        // DEDUCT STOCK
+        const updatedItems = [];
+        for (const item of items) {
+            const menuItem = restaurant.menu.id(item.menuItemId || item._id);
+            if (menuItem && menuItem.stock !== null && menuItem.stock !== undefined) {
+                menuItem.stock -= item.quantity;
+                // Auto-unavailable if 0?
+                if (menuItem.stock <= 0) {
+                    menuItem.stock = 0; // Prevent negative
+                    // Optional: menuItem.isAvailable = false; 
+                }
+                updatedItems.push({
+                    _id: menuItem._id,
+                    stock: menuItem.stock,
+                    isAvailable: menuItem.isAvailable
+                });
+            }
+        }
+        // Save restaurant to update stock
+        await restaurant.save();
+
+        // Emit Stock Update
+        if (updatedItems.length > 0) {
+            io.to(`restro_public_${restaurantId}`).emit("menu_stock_update", updatedItems);
+        }
+
         // Create Order
         const newOrder = new Order({
             restaurantId,
@@ -101,7 +151,7 @@ export const placeOrder = async (req, res) => {
                 if (['waiter', 'manager', 'owner'].includes(staffMember.role) || staffMember.role !== 'kitchen') {
                     isStaffPlacement = true;
                     assignedWaiterId = req.user._id; // Assign to SELF
-                    console.log(`[OrderPlacement] Order placed by Staff (${staffMember.role}): ${req.user.name}. Auto-assigning to self.`);
+                    logger.info(`[OrderPlacement] Order placed by Staff (${staffMember.role}): ${req.user.name}. Auto-assigning to self.`);
                 }
             }
         }
@@ -141,17 +191,17 @@ export const placeOrder = async (req, res) => {
                 // Assign the one with least load
                 assignedWaiterId = waiterLoad[0].waiterId;
                 table.assignedWaiterId = assignedWaiterId;
-                console.log(`[OrderPlacement] Auto-assigned waiter: ${assignedWaiterId} (Load: ${waiterLoad[0].load})`);
+                logger.info(`[OrderPlacement] Auto-assigned waiter: ${assignedWaiterId} (Load: ${waiterLoad[0].load})`);
             } else {
-                console.warn("[OrderPlacement] No active waiters found even though check passed?");
+                logger.warn("[OrderPlacement] No active waiters found even though check passed?");
             }
         }
 
         if (assignedWaiterId) {
             newOrder.waiterId = assignedWaiterId;
-            console.log(`[OrderPlacement] Order ${newOrder._id} assigned to Waiter ${assignedWaiterId}`);
+            logger.info(`[OrderPlacement] Order ${newOrder._id} assigned to Waiter ${assignedWaiterId}`);
         } else {
-            console.warn(`[OrderPlacement] Order ${newOrder._id} created WITHOUT Waiter ID`);
+            logger.warn(`[OrderPlacement] Order ${newOrder._id} created WITHOUT Waiter ID`);
         }
         // ---------------------------------------------------------
 
@@ -160,6 +210,9 @@ export const placeOrder = async (req, res) => {
         // Update Table Status (Lock it)
         table.isOccupied = true;
         table.currentOrderId = newOrder._id;
+        if (newOrder.waiterId) {
+            table.assignedWaiterId = newOrder.waiterId;
+        }
         await restaurant.save();
 
         // Populate waiter details for socket emission
@@ -172,11 +225,24 @@ export const placeOrder = async (req, res) => {
         io.to(roomNameStaff).emit("new_order", newOrder);
         io.to(roomNameCustomer).emit("order_update", newOrder);
 
-        console.log(`[OrderPlacement] Emitted 'new_order' to ${roomNameStaff}`);
+        // Emit Table Update
+        const tableUpdateData = {
+            tableId,
+            isOccupied: true,
+            currentOrderId: newOrder._id,
+            assignedWaiterId: newOrder.waiterId // Send ID or populated object? ID is safer for consistency
+        };
+        io.to(roomNameStaff).emit("table_update", tableUpdateData);
+        // Customer might not need generic table update, but if they are on a "select table" screen, maybe?
+        // But roomNameCustomer is specific to THAT table. So they know.
+        // But we might want to broadcast to "restro_public_${restaurantId}" if we have a floor plan view for customers?
+        // For now, staff update is critical.
+
+        logger.info(`[OrderPlacement] Emitted 'new_order' to ${roomNameStaff}`);
 
         res.status(201).json({ message: "Order placed successfully", order: newOrder });
     } catch (error) {
-        console.error("Error placing order:", error);
+        logger.error("Error placing order:", error);
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 };
@@ -206,11 +272,11 @@ export const updateOrderStatus = async (req, res) => {
         io.to(roomNameCustomer).emit("order_update", order);
         io.to(roomNameStaff).emit("order_update", order);
 
-        console.log(`[OrderUpdate] Emitted to ${roomNameCustomer} and ${roomNameStaff}`);
+        logger.info(`[OrderUpdate] Emitted to ${roomNameCustomer} and ${roomNameStaff}`);
 
         res.json({ message: "Order status updated", order });
     } catch (error) {
-        console.error("Error updating order:", error);
+        logger.error("Error updating order:", error);
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 };
@@ -262,7 +328,7 @@ export const markTableAsPaid = async (req, res) => {
 
         res.json({ message: "Table marked as Paid", updatedOrders });
     } catch (error) {
-        console.error("Error marking table paid:", error);
+        logger.error("Error marking table paid:", error);
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 };
@@ -287,25 +353,24 @@ export const freeTable = async (req, res) => {
             }
         }
 
-        // Check for active orders before closing
-        if (table.currentOrderId) {
-            const activeOrder = await Order.findById(table.currentOrderId);
-            // Allow close if PAID or already COMPLETED (legacy)
-            if (activeOrder && activeOrder.status !== "PAID" && activeOrder.status !== "COMPLETED") {
-                return res.status(400).json({
-                    message: "Cannot close session. Filter un-served or unpaid orders first.",
-                    orderStatus: activeOrder.status,
-                    activeOrderId: activeOrder._id
-                });
-            }
+        // Check for ANY active unpaid/unserved orders before closing
+        const unresolvedOrders = await Order.findOne({
+            tableId,
+            restaurantId,
+            isSessionClosed: { $ne: true },
+            status: { $nin: ["PAID", "COMPLETED"] } // Must be PAID or COMPLETED
+        });
 
-            // Mark order as closed/archived for this session
-            if (activeOrder) {
-                activeOrder.isSessionClosed = true;
-                // DO NOT change status to COMPLETED, leave as PAID
-                await activeOrder.save();
-            }
+        if (unresolvedOrders) {
+            return res.status(400).json({
+                message: "Cannot close session. There are unpaid or active orders. Please settle them first.",
+                activeOrderId: unresolvedOrders._id,
+                orderStatus: unresolvedOrders.status
+            });
         }
+
+        // Mark last order as session closed (actually we do bulk update below)
+        // logic below is fine.
 
         // Also close ANY other active orders for this table (bulk close)
         await Order.updateMany(
@@ -327,7 +392,7 @@ export const freeTable = async (req, res) => {
 
         res.json({ message: "Table freed successfully" });
     } catch (error) {
-        console.error("Error freeing table:", error);
+        logger.error("Error freeing table:", error);
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 };
@@ -393,7 +458,7 @@ export const getRestaurantActiveOrders = async (req, res) => {
                 }
             }
         } catch (roleError) {
-            console.warn("[getRestaurantActiveOrders] Role check warning, defaulting to full view:", roleError);
+            logger.warn("[getRestaurantActiveOrders] Role check warning, defaulting to full view:", roleError);
         }
 
         // 3. Execution (With .lean() for performance and safety)
@@ -405,7 +470,82 @@ export const getRestaurantActiveOrders = async (req, res) => {
 
         res.json(orders);
     } catch (error) {
-        console.error("[getRestaurantActiveOrders] CRITICAL ERROR:", error);
+        logger.error("[getRestaurantActiveOrders] CRITICAL ERROR:", error);
         res.status(500).json({ message: "Server Error Fetching Orders", error: error.message });
+    }
+};
+
+// Get Order History with Pagination (For Owner Reports)
+export const getOrderHistory = async (req, res) => {
+    try {
+        const { restaurantId } = req.params;
+        const { page = 1, limit = 20, status, fromDate, toDate, search } = req.query;
+
+        if (!restaurantId || !mongoose.Types.ObjectId.isValid(restaurantId)) {
+            return res.status(400).json({ message: "Invalid Restaurant ID" });
+        }
+
+        const query = { restaurantId };
+
+        // Authorization check? Assuming middleware handled 'owner'/'manager' check, but might double check user role inside if needed.
+        // For now rely on route protection.
+
+        // Status Filter
+        if (status) {
+            query.status = status;
+        }
+        // IF no status provided, we return ALL orders (Active + History) as per user request to see "Placed", "Preparing" etc.
+        // Previously we defaulted to only Completed/Paid. Removing that restriction.
+
+        // Date Range (default: last 30 days if not specified?)
+        if (fromDate) {
+            query.createdAt = { ...query.createdAt, $gte: new Date(fromDate) };
+        }
+        if (toDate) {
+            const end = new Date(toDate);
+            end.setHours(23, 59, 59, 999);
+            query.createdAt = { ...query.createdAt, $lte: end };
+        }
+
+        // Search by Order ID or Table No
+        if (search) {
+            if (mongoose.Types.ObjectId.isValid(search)) {
+                query._id = search;
+            } else if (!isNaN(search)) {
+                query.tableNo = Number(search);
+            } else {
+                // Return empty if search term is invalid (not ID or Number)
+                // Using a dummy condition that will never match
+                query._id = null;
+            }
+        }
+
+        // Pagination
+        const skip = (page - 1) * limit;
+
+        const [orders, total] = await Promise.all([
+            Order.find(query)
+                .sort({ createdAt: -1 }) // Newest first
+                .skip(Number(skip))
+                .limit(Number(limit))
+                .populate("waiterId", "name")
+                .lean(),
+            Order.countDocuments(query)
+        ]);
+
+        res.json({
+            success: true,
+            orders,
+            pagination: {
+                total,
+                page: Number(page),
+                limit: Number(limit),
+                pages: Math.ceil(total / limit)
+            }
+        });
+
+    } catch (error) {
+        logger.error("Error fetching order history:", error);
+        res.status(500).json({ message: "Server Error", error: error.message });
     }
 };

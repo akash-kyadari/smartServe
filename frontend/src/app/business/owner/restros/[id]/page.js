@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { DollarSign, Utensils, Clock, Globe, ArrowUpRight, MoreHorizontal, Loader2, User, LayoutGrid, X } from "lucide-react";
+import { DollarSign, Utensils, Clock, Globe, ArrowUpRight, MoreHorizontal, Loader2, User, LayoutGrid, X, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams } from "next/navigation";
 import useRestaurantStore from "@/store/useRestaurantStore";
@@ -9,9 +9,9 @@ import useAuthStore from "@/store/useAuthStore";
 import { getSocket } from "@/lib/socket";
 import axios from "axios";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") + "/api";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL) + "/api";
 
-const KPICard = ({ title, value, sub, icon: Icon, trend }) => (
+const KPICard = React.memo(({ title, value, sub, icon: Icon, trend }) => (
     <div className="bg-card text-card-foreground rounded-xl p-6 shadow-sm border border-border relative overflow-hidden group">
         <div className="flex justify-between items-start">
             <div>
@@ -31,9 +31,9 @@ const KPICard = ({ title, value, sub, icon: Icon, trend }) => (
             <span className="text-muted-foreground">{sub}</span>
         </div>
     </div>
-);
+));
 
-const RevenueChart = ({ data }) => (
+const RevenueChart = React.memo(({ data }) => (
     <div className="bg-card text-card-foreground p-6 rounded-xl shadow-sm border border-border col-span-2">
         <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold">Revenue Overview (Last 7 Days)</h3>
@@ -58,9 +58,9 @@ const RevenueChart = ({ data }) => (
             {data?.map(d => <span key={d.date}>{d.day}</span>)}
         </div>
     </div>
-);
+));
 
-const PopularDishes = ({ data }) => (
+const PopularDishes = React.memo(({ data }) => (
     <div className="bg-card text-card-foreground p-6 rounded-xl shadow-sm border border-border">
         <h3 className="font-bold mb-6">Popular Dishes (Last 30 Days)</h3>
         <div className="space-y-5">
@@ -83,9 +83,9 @@ const PopularDishes = ({ data }) => (
             {(!data || data.length === 0) && <div className="text-center text-muted-foreground py-8">No sales data yet</div>}
         </div>
     </div>
-);
+));
 
-const StaffOverview = ({ staff }) => {
+const StaffOverview = React.memo(({ staff }) => {
     // Sort: Active first, then by role
     const sortedStaff = [...(staff || [])].sort((a, b) => {
         if (a.isActive === b.isActive) return 0;
@@ -123,17 +123,42 @@ const StaffOverview = ({ staff }) => {
             </div>
         </div>
     );
-};
+});
+
+const LowStockAlert = React.memo(({ menu }) => {
+    const lowStockItems = menu?.filter(i => i.stock !== null && i.stock !== undefined && i.stock <= 5 && i.isAvailable) || [];
+    if (lowStockItems.length === 0) return null;
+
+    return (
+        <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 p-4 rounded-xl shadow-sm">
+            <h3 className="font-bold text-red-700 dark:text-red-400 mb-2 flex items-center gap-2">
+                <AlertTriangle size={18} /> Low Stock Alert
+            </h3>
+            <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
+                {lowStockItems.map(item => (
+                    <div key={item._id} className="flex justify-between items-center text-sm">
+                        <span className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-[70%]">{item.name}</span>
+                        <span className="font-bold text-red-600 dark:text-red-400 bg-white dark:bg-black/20 px-2 py-0.5 rounded-full text-xs">
+                            {item.stock} left
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+});
 
 export default function RestaurantDashboard() {
     const params = useParams();
-    const { restaurants, fetchRestaurants, fetchRestaurantById } = useRestaurantStore();
+    const { restaurants, fetchRestaurants, fetchRestaurantById, dashboardData, setDashboardData } = useRestaurantStore();
     const { user, isAuthenticated } = useAuthStore();
 
-    // Data State
-    const [orders, setOrders] = useState([]);
-    const [analytics, setAnalytics] = useState({ revenue: [], popularDishes: [] });
-    const [statsLoading, setStatsLoading] = useState(true);
+    // Data State (Initialize from store if available)
+    const stored = dashboardData[params.id] || {};
+    const orders = stored.activeOrders || []; // Use derived state from store
+    const [analytics, setAnalytics] = useState(stored.analytics || { revenue: [], popularDishes: [] });
+    // Stats loading is true only if we have NO orders and NO analytics
+    const [statsLoading, setStatsLoading] = useState(!stored.activeOrders);
     const [selectedTable, setSelectedTable] = useState(null);
 
     // Find restaurant data
@@ -143,90 +168,61 @@ export default function RestaurantDashboard() {
     useEffect(() => {
         if (!isAuthenticated || !user) return;
 
+        const controller = new AbortController();
+
         // Fetch Restro details logic
+        // Deduplicate this too
         if (!currentRestaurant) {
             const isOwner = user.roles.includes('owner');
+            // Assuming store handles deduplication or passing signal not supported by store yet
+            // If store doesn't support signal, we can at least control local fetch below
             if (isOwner) fetchRestaurants();
             else fetchRestaurantById(params.id);
         }
 
         // Fetch Orders & Analytics
         const fetchData = async () => {
+            // IF we have data, DO NOT FETCH. Layout socket listeners keep it fresh.
+            if (stored.activeOrders) {
+                setStatsLoading(false); // Ensure loading is false
+                return;
+            }
+
             try {
-                setStatsLoading(true);
+                // Only show loading if we don't have data
+                if (!stored.activeOrders) setStatsLoading(true);
+
+                const signal = controller.signal;
+
                 const [ordersRes, analyticsRes] = await Promise.all([
-                    axios.get(`${API_URL}/orders/active/${params.id}`, { withCredentials: true }),
-                    user.roles.includes('owner') || user.roles.includes('manager') ?
-                        axios.get(`${API_URL}/restaurants/analytics/${params.id}`, { withCredentials: true }) : Promise.resolve({ data: {} })
+                    axios.get(`${API_URL}/orders/active/${params.id}`, { withCredentials: true, signal }),
+                    (user.roles.includes('owner') || user.roles.includes('manager')) ?
+                        axios.get(`${API_URL}/restaurants/analytics/${params.id}`, { withCredentials: true, signal }) : Promise.resolve({ data: {} })
                 ]);
 
-                setOrders(ordersRes.data || []);
+                if (signal.aborted) return;
+
+                setDashboardData(params.id, { activeOrders: ordersRes.data || [] });
+
                 if (analyticsRes.data?.success) {
                     setAnalytics(analyticsRes.data);
+                    setDashboardData(params.id, { analytics: analyticsRes.data });
                 }
             } catch (err) {
+                if (axios.isCancel(err) || err.name === 'CanceledError') return;
                 console.error("Failed to load dashboard data", err);
             } finally {
-                setStatsLoading(false);
+                if (!controller.signal.aborted) setStatsLoading(false);
             }
         };
 
         fetchData();
-    }, [user, isAuthenticated, fetchRestaurants, fetchRestaurantById, params.id, currentRestaurant]);
 
-    // Socket Integration
-    useEffect(() => {
-        if (!params.id || !user) return;
+        return () => controller.abort();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [params.id, isAuthenticated]); // Reduced dependencies to avoid re-fetch loops
 
-        const socket = getSocket();
-        // IMPORTANT: Pass object with userId so server attaches it to socket for room tracking
-        socket.emit("join_staff_room", { restaurantId: params.id, userId: user._id });
-        console.log("Owner Joined Staff Room:", params.id);
-
-        const handleNewOrder = (newOrder) => {
-            setOrders(prev => {
-                if (prev.find(o => o._id === newOrder._id)) return prev;
-                return [newOrder, ...prev];
-            });
-            // Refresh restaurant metadata (tables status)
-            fetchRestaurantById(params.id);
-        };
-
-        const handleOrderUpdate = (updatedOrder) => {
-            setOrders(prev => {
-                const exists = prev.find(o => o._id === updatedOrder._id);
-                if (exists) {
-                    return prev.map(o => o._id === updatedOrder._id ? updatedOrder : o);
-                }
-                return [updatedOrder, ...prev];
-            });
-            fetchRestaurantById(params.id);
-        };
-
-        const handleRefresh = () => {
-            // Triggered by table_freed, service_update, bill_update, staff_update
-            console.log("Socket: Refreshing Restaurant Data...");
-            fetchRestaurantById(params.id);
-        };
-
-        socket.on("new_order", handleNewOrder);
-        socket.on("order_update", handleOrderUpdate);
-
-        // Table & Status Updates
-        socket.on("table_freed", handleRefresh);
-        socket.on("table_service_update", handleRefresh);
-        socket.on("table_bill_update", handleRefresh);
-        socket.on("staff_update", handleRefresh); // When staff logs in/out
-
-        return () => {
-            socket.off("new_order", handleNewOrder);
-            socket.off("order_update", handleOrderUpdate);
-            socket.off("table_freed", handleRefresh);
-            socket.off("table_service_update", handleRefresh);
-            socket.off("table_bill_update", handleRefresh);
-            socket.off("staff_update", handleRefresh);
-        };
-    }, [params.id, fetchRestaurantById]);
+    // Socket Integration handled in Layout.js
 
 
     if (!currentRestaurant) {
@@ -240,7 +236,8 @@ export default function RestaurantDashboard() {
     const activeList = orders.filter(o => ["PLACED", "PREPARING", "READY", "SERVED"].includes(o.status));
     const completedList = orders.filter(o => ["PAID", "COMPLETED"].includes(o.status)).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
-    const OrderTable = ({ title, data, emptyMsg }) => (
+    // Moved outside component to prevent re-creation
+    const OrderTable = React.memo(({ title, data, emptyMsg }) => (
         <div className="bg-card text-card-foreground rounded-xl shadow-sm border border-border overflow-hidden">
             <div className="p-6 border-b border-border flex justify-between items-center">
                 <h3 className="font-bold flex items-center gap-2">
@@ -306,7 +303,7 @@ export default function RestaurantDashboard() {
                 </table>
             </div>
         </div>
-    );
+    ));
 
     return (
         <div className="space-y-8">
@@ -331,6 +328,7 @@ export default function RestaurantDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <RevenueChart data={analytics.revenue} />
                 <div className="space-y-6">
+                    <LowStockAlert menu={currentRestaurant.menu} />
                     <PopularDishes data={analytics.popularDishes} />
                     <StaffOverview staff={currentRestaurant.staff} />
                 </div>
@@ -370,19 +368,27 @@ export default function RestaurantDashboard() {
                                     <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
                                         <User size={14} /> Assigned Staff
                                     </h4>
-                                    {selectedTable.assignedWaiterId ? (
-                                        <div className="flex items-center gap-3 bg-secondary/50 p-3 rounded-lg border border-border/50">
-                                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-                                                {currentRestaurant.staff?.find(s => s.user?._id === selectedTable.assignedWaiterId || s.user === selectedTable.assignedWaiterId)?.user?.name?.charAt(0) || 'S'}
+                                    {selectedTable.assignedWaiterId ? (() => {
+                                        // Logic to find staff name
+                                        const waiterId = selectedTable.assignedWaiterId._id || selectedTable.assignedWaiterId;
+                                        const staffMember = currentRestaurant.staff?.find(s => {
+                                            const sId = s.user?._id || s.user;
+                                            return sId?.toString() === waiterId?.toString();
+                                        });
+                                        const waiterName = staffMember?.user?.name || selectedTable.assignedWaiterId.name || 'Unknown Staff';
+
+                                        return (
+                                            <div className="flex items-center gap-3 bg-secondary/50 p-3 rounded-lg border border-border/50">
+                                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                                                    {waiterName.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold">{waiterName}</p>
+                                                    <p className="text-xs text-muted-foreground">Waiter</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-bold">
-                                                    {currentRestaurant.staff?.find(s => s.user?._id === selectedTable.assignedWaiterId || s.user === selectedTable.assignedWaiterId)?.user?.name || 'Unknown Staff'}
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">Waiter</p>
-                                            </div>
-                                        </div>
-                                    ) : (
+                                        );
+                                    })() : (
                                         <div className="text-sm text-muted-foreground italic">No waiter assigned currently.</div>
                                     )}
                                 </div>

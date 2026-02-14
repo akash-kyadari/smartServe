@@ -25,7 +25,12 @@ const useBookingsStore = create((set, get) => ({
 
         set({ isLoading: true, error: null });
         try {
+            const token = localStorage.getItem('token');
+            const headers = {};
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
             const response = await fetch(`${API_URL}/bookings`, {
+                headers,
                 credentials: 'include',
             });
 
@@ -55,11 +60,15 @@ const useBookingsStore = create((set, get) => ({
     createBooking: async (bookingData) => {
         set({ isLoading: true, error: null });
         try {
+            const token = localStorage.getItem('token');
+            const headers = {
+                'Content-Type': 'application/json',
+            };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
             const response = await fetch(`${API_URL}/bookings`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers,
                 credentials: 'include',
                 body: JSON.stringify(bookingData),
             });
@@ -92,8 +101,13 @@ const useBookingsStore = create((set, get) => ({
     cancelBooking: async (bookingId) => {
         set({ isLoading: true, error: null });
         try {
+            const token = localStorage.getItem('token');
+            const headers = {};
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
             const response = await fetch(`${API_URL}/bookings/${bookingId}`, {
                 method: 'DELETE',
+                headers,
                 credentials: 'include',
             });
 

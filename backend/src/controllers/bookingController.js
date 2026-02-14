@@ -3,6 +3,7 @@ import Restaurant from "../models/RestaurantModel.js";
 import BookingLock from "../models/BookingLockModel.js";
 import mongoose from "mongoose";
 import { io } from "../socket/socket.js";
+import logger from "../utils/logger.js";
 
 // Create Booking with Distributed Lock
 export const createBooking = async (req, res) => {
@@ -71,11 +72,11 @@ export const createBooking = async (req, res) => {
 
                 if (existingLock && existingLock.lockedBy.toString() === userId.toString()) {
                     // We own the lock, so we can proceed!
-                    console.log(`User ${userId} already holds lock for table ${tableId}, proceeding to book.`);
+                    logger.info(`User ${userId} already holds lock for table ${tableId}, proceeding to book.`);
                     lockAcquired = true;
                     lockId = existingLock._id;
                 } else {
-                    console.log(`Lock conflict for table ${tableId} at ${startTime}`);
+                    logger.warn(`Lock conflict for table ${tableId} at ${startTime}`);
                     return res.status(409).json({
                         success: false,
                         message: "This table is being booked by another user right now. Please try again in a moment.",
@@ -127,21 +128,32 @@ export const createBooking = async (req, res) => {
         });
 
         await newBooking.save();
-        console.log(`Booking created for table ${tableId} at ${startTime} by user ${userId}`);
+        console.log(`[DEBUG] Booking saved successfully: ${newBooking._id}`);
+        logger.info(`Booking created for table ${tableId} at ${startTime} by user ${userId}`);
 
         // STEP 4: Release the lock
         await BookingLock.deleteOne({ _id: lockId });
         lockAcquired = false;
-        console.log(`Lock released for table ${tableId} at ${startTime}`);
+        logger.info(`Lock released for table ${tableId} at ${startTime}`);
 
-        // Populate restaurant data
-        await newBooking.populate('restaurantId', 'name address phone');
+        // Populate restaurant data - MUST include tables to resolve tableNumber
+        await newBooking.populate('restaurantId', 'name address phone tables');
+
+        // Convert to plain object to add tableNumber and cleanup
+        const bookingObj = newBooking.toObject();
+        if (bookingObj.restaurantId && bookingObj.restaurantId.tables) {
+            const table = bookingObj.restaurantId.tables.find(t => t._id.toString() === bookingObj.tableId.toString());
+            if (table) {
+                bookingObj.tableNumber = table.tableNumber;
+            }
+            delete bookingObj.restaurantId.tables;
+        }
 
         // Emit Socket.IO events
         const restroIdStr = restaurantId.toString();
 
         io.to(`restro_staff_${restroIdStr}`).emit('booking:created', {
-            booking: newBooking,
+            booking: bookingObj,
             tableId,
             date,
             startTime,
@@ -155,18 +167,18 @@ export const createBooking = async (req, res) => {
             endTime
         });
 
-        res.status(201).json({ success: true, message: "Table booked successfully", booking: newBooking });
+        res.status(201).json({ success: true, message: "Table booked successfully", booking: bookingObj });
 
     } catch (error) {
-        console.error("Booking Error:", error);
+        logger.error("Booking Error:", error);
 
         // Clean up lock if it was acquired
         if (lockAcquired && lockId) {
             try {
                 await BookingLock.deleteOne({ _id: lockId });
-                console.log(`Lock cleaned up after error`);
+                logger.info(`Lock cleaned up after error`);
             } catch (cleanupError) {
-                console.error("Error cleaning up lock:", cleanupError);
+                logger.error("Error cleaning up lock:", cleanupError);
             }
         }
 
@@ -177,12 +189,12 @@ export const createBooking = async (req, res) => {
 // Get Bookings (For User or Restaurant)
 export const getBookings = async (req, res) => {
     try {
-        const { restaurantId, date, startTime } = req.query; // If provided, fetch for restaurant (Owner/Staff)
+        const { restaurantId, date, startTime, page = 1, limit = 20 } = req.query; // Pagination
 
         let query = {};
+        let isAvailabilityCheck = false;
+
         if (restaurantId) {
-            // Only Owner/Manager checks restaurant bookings
-            // OR frontend fetches available tables
             query.restaurantId = restaurantId;
 
             if (date) {
@@ -190,58 +202,73 @@ export const getBookings = async (req, res) => {
             }
 
             if (startTime) {
-                // If checking availability for a specific slot, find overlapping bookings
-                // e.g., if checking 12:00, we need to know if any booking starts/ends around it
-                // Assuming 2-hour slots:
-                // StartTime of existing booking < (RequestedStart + 1h)
-                // EndTime of existing booking > RequestedStart
+                isAvailabilityCheck = true;
                 const requestedStart = new Date(`2000-01-01T${startTime}`);
                 const requestedEnd = new Date(requestedStart.getTime() + 1 * 60 * 60 * 1000); // 1 Hour
                 const reqEndStr = requestedEnd.toTimeString().slice(0, 5);
 
-                // Simple string comparison works for HH:mm if format is consistent
-                // Find bookings that overlap with this time window
                 query.$or = [
-                    { startTime: { $lt: reqEndStr, $gte: startTime } }, // Starts during this slot
-                    { endTime: { $gt: startTime, $lte: reqEndStr } },   // Ends during this slot
-                    { startTime: { $lte: startTime }, endTime: { $gte: reqEndStr } } // Covers entire slot
+                    { startTime: { $lt: reqEndStr, $gte: startTime } },
+                    { endTime: { $gt: startTime, $lte: reqEndStr } },
+                    { startTime: { $lte: startTime }, endTime: { $gte: reqEndStr } }
                 ];
             }
-            // Only fetch active bookings for availability check
             query.status = { $ne: 'cancelled' };
         } else {
-            // Fetch My Bookings (Customer)
             query.userId = req.user._id;
         }
 
-        const bookings = await Booking.find(query)
-            .populate('restaurantId', 'name address phone tables') // Include tables to resolve number
-            .sort({ date: 1, startTime: 1 })
-            .lean();
+        // Pagination for List View (Not for Availability Check)
+        let bookings = [];
+        let total = 0;
 
-        // Resolve table numbers and clean up payload
+        if (!isAvailabilityCheck) {
+            const skip = (page - 1) * limit;
+
+            [bookings, total] = await Promise.all([
+                Booking.find(query)
+                    .populate('restaurantId', 'name address phone tables')
+                    .sort({ date: 1, startTime: 1 })
+                    .skip(Number(skip))
+                    .limit(Number(limit))
+                    .lean(),
+                Booking.countDocuments(query)
+            ]);
+        } else {
+            bookings = await Booking.find(query)
+                .populate('restaurantId', 'name address phone tables')
+                .lean();
+            total = bookings.length;
+        }
+
+        // Resolve table numbers...
         bookings.forEach(booking => {
-            if (booking.restaurantId && booking.restaurantId.tables) {
-                const table = booking.restaurantId.tables.find(t => t._id.toString() === booking.tableId.toString());
+            if (booking.restaurantId && Array.isArray(booking.restaurantId.tables)) {
+                const tableIdStr = booking.tableId.toString();
+                const table = booking.restaurantId.tables.find(t => t._id && t._id.toString() === tableIdStr);
                 if (table) {
                     booking.tableNumber = table.tableNumber;
                 }
-                // Remove heavy tables array from response
+            }
+        });
+
+        // Second pass to cleanup populated tables if present
+        bookings.forEach(booking => {
+            if (booking.restaurantId) {
                 delete booking.restaurantId.tables;
             }
         });
 
-        // Also fetch active locks if checking availability
+        // Fetch locks only for availability check
         let locks = [];
-        if (restaurantId && date && startTime) {
+        if (isAvailabilityCheck && restaurantId) {
             const requestedStart = new Date(`2000-01-01T${startTime}`);
-            const requestedEnd = new Date(requestedStart.getTime() + 2 * 60 * 60 * 1000);
+            const requestedEnd = new Date(requestedStart.getTime() + 1 * 60 * 60 * 1000); // 1 Hour matches above
             const reqEndStr = requestedEnd.toTimeString().slice(0, 5);
 
             locks = await BookingLock.find({
                 restaurantId,
                 date,
-                // Lock overlaps with requested slot
                 $or: [
                     { startTime: { $lt: reqEndStr, $gte: startTime } },
                     { endTime: { $gt: startTime, $lte: reqEndStr } },
@@ -250,21 +277,25 @@ export const getBookings = async (req, res) => {
             });
         }
 
-        // Combine booked tables and locked tables
-        // Since we are using lean(), bookings are plain objects.
-        // We need to return tableId for availability checks on frontend.
-        // tableId is already in booking object.
-
         const lockBookings = locks.map(l => ({
             _id: l._id,
             tableId: l.tableId,
-            status: 'locked', // Custom status for frontend
+            status: 'locked',
             startTime: l.startTime,
             endTime: l.endTime,
-            lockedBy: l.lockedBy // <--- Added this field
+            lockedBy: l.lockedBy
         }));
 
-        res.status(200).json({ success: true, bookings: [...bookings, ...lockBookings] });
+        res.status(200).json({
+            success: true,
+            bookings: [...bookings, ...lockBookings],
+            pagination: !isAvailabilityCheck ? {
+                total,
+                page: Number(page),
+                limit: Number(limit),
+                pages: Math.ceil(total / limit)
+            } : null
+        });
 
     } catch (error) {
         res.status(500).json({ success: false, message: "Failed to fetch bookings", error: error.message });

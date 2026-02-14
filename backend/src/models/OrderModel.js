@@ -6,14 +6,17 @@ const OrderSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "Restaurant",
             required: true,
+            index: true, // Optimizing for frequent queries
         },
         tableId: {
             type: mongoose.Schema.Types.ObjectId, // References the subdocument _id in Restaurant.tables
             required: true,
+            index: true, // Often filter by table
         },
         waiterId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
+            index: true,
         },
         tableNo: {
             type: Number,
@@ -46,6 +49,7 @@ const OrderSchema = new mongoose.Schema(
             type: String,
             enum: ["PLACED", "PREPARING", "READY", "SERVED", "PAID", "COMPLETED"],
             default: "PLACED",
+            index: true, // Filter by status
         },
         paymentStatus: {
             type: String,
@@ -59,10 +63,17 @@ const OrderSchema = new mongoose.Schema(
         },
         isSessionClosed: {
             type: Boolean,
-            default: false
+            default: false,
+            index: true // Filter active sessions
         }
     },
     { timestamps: true }
 );
+
+// Indexes for common queries
+OrderSchema.index({ restaurantId: 1, status: 1 });
+OrderSchema.index({ restaurantId: 1, createdAt: -1 }); // For history
+OrderSchema.index({ restaurantId: 1, updatedAt: -1 }); // For active orders check
+OrderSchema.index({ tableId: 1, status: 1 });
 
 export default mongoose.model("Order", OrderSchema);

@@ -1,6 +1,6 @@
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL;
 
 class SocketService {
     constructor() {
@@ -15,7 +15,7 @@ class SocketService {
         }
 
         // Ensure we point to the correct Backend URL
-        const url_to_use = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5055';
+        const url_to_use = process.env.NEXT_PUBLIC_API_URL;
 
         this.socket = io(url_to_use, {
             transports: ['websocket', 'polling'],

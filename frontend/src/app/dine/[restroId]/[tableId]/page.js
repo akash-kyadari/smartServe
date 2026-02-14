@@ -14,7 +14,7 @@ import OrderTracker from "@/components/customer/OrderTracker";
 import CustomerNavbar from "@/components/customer/CustomerNavbar";
 
 // API
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") + "/api";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL) + "/api";
 
 export default function TablePage({ params }) {
     const { restroId, tableId } = useParams();
@@ -140,6 +140,41 @@ export default function TablePage({ params }) {
             }
         });
 
+        socket.on("menu_stock_update", (updatedItems) => {
+            console.log("Menu Stock Update:", updatedItems);
+            setRestaurant(prev => {
+                if (!prev) return prev;
+                const newMenu = prev.menu.map(item => {
+                    const update = updatedItems.find(u => u._id === item._id);
+                    if (update) {
+                        return { ...item, ...update };
+                    }
+                    return item;
+                });
+                return { ...prev, menu: newMenu };
+            });
+
+            // Update Cart Items if they exist in the update
+            setCart(prev => {
+                const newCart = { ...prev };
+                let changed = false;
+                updatedItems.forEach(update => {
+                    if (newCart[update._id]) {
+                        // Careful not to overwrite quantity or addons
+                        newCart[update._id] = {
+                            ...newCart[update._id],
+                            stock: update.stock,
+                            isAvailable: update.isAvailable,
+                            name: update.name || newCart[update._id].name, // If name changed
+                            price: update.price || newCart[update._id].price
+                        };
+                        changed = true;
+                    }
+                });
+                return changed ? newCart : prev;
+            });
+        });
+
         socket.on("table_freed", () => {
             // Session Ended by Waiter
             setSessionEnded(true);
@@ -168,6 +203,7 @@ export default function TablePage({ params }) {
             socket.off("table_service_update");
             socket.off("table_bill_update");
             socket.off("restaurant_status_update");
+            socket.off("menu_stock_update");
         };
 
     }, [restroId, tableId]);

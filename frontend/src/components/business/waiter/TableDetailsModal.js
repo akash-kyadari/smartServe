@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { ClipboardList, CheckCircle, Bell, X, LogOut, DollarSign, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") + "/api";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL) + "/api";
 
 export default function TableDetailsModal({
     table,

@@ -9,7 +9,7 @@ import RoleGuard from "@/components/auth/RoleGuard";
 import { getSocket } from "@/lib/socket"; // Import Socket
 import axios from "axios";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") + "/api";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL) + "/api";
 
 function KitchenPageContent() {
     const { fetchRestaurantById, restaurants, isLoading: isRestroLoading } = useRestaurantStore();
@@ -204,21 +204,21 @@ function KitchenPageContent() {
                         </div>
                         <div className="bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2 border border-green-200 dark:border-green-800 animate-pulse">
                             <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                            Live 
+                            Live
                         </div>
                     </div>
                 </header>
 
                 {/* Kanban Board */}
-                <main className="flex-1 overflow-x-auto overflow-y-hidden p-6">
-                    <div className="flex gap-6 h-full min-w-max">
+                <main className="flex-1 overflow-x-hidden overflow-y-auto md:overflow-x-auto md:overflow-y-hidden p-4 md:p-6">
+                    <div className="flex flex-col md:flex-row gap-6 h-full min-w-0 md:min-w-max">
                         {/* New Orders Column */}
-                        <div className="w-96 flex flex-col gap-4 bg-secondary/30 p-4 rounded-xl border border-border/50">
+                        <div className="w-full md:w-96 flex flex-col gap-4 bg-secondary/30 p-4 rounded-xl border border-border/50 shrink-0 h-auto md:h-full">
                             <div className="flex items-center justify-between text-muted-foreground uppercase text-xs font-bold tracking-wider mb-2">
                                 <span className="flex items-center gap-2"><AlertCircle size={16} className="text-blue-500" /> New Orders</span>
                                 <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{newOrders.length}</span>
                             </div>
-                            <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-hide">
+                            <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-hide min-h-[200px] md:min-h-0">
                                 <AnimatePresence>
                                     {newOrders.map(order => (
                                         <motion.div
@@ -271,12 +271,12 @@ function KitchenPageContent() {
                         </div>
 
                         {/* Cooking Column */}
-                        <div className="w-96 flex flex-col gap-4 bg-secondary/30 p-4 rounded-xl border border-border/50">
+                        <div className="w-full md:w-96 flex flex-col gap-4 bg-secondary/30 p-4 rounded-xl border border-border/50 shrink-0 h-auto md:h-full">
                             <div className="flex items-center justify-between text-muted-foreground uppercase text-xs font-bold tracking-wider mb-2">
                                 <span className="flex items-center gap-2"><Flame size={16} className="text-orange-500" /> Cooking</span>
                                 <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{cookingOrders.length}</span>
                             </div>
-                            <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-hide">
+                            <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-hide min-h-[200px] md:min-h-0">
                                 <AnimatePresence>
                                     {cookingOrders.map(order => (
                                         <motion.div
@@ -327,12 +327,12 @@ function KitchenPageContent() {
                         </div>
 
                         {/* Ready Column */}
-                        <div className="w-96 flex flex-col gap-4 bg-secondary/30 p-4 rounded-xl border border-border/50">
+                        <div className="w-full md:w-96 flex flex-col gap-4 bg-secondary/30 p-4 rounded-xl border border-border/50 shrink-0 h-auto md:h-full">
                             <div className="flex items-center justify-between text-muted-foreground uppercase text-xs font-bold tracking-wider mb-2">
                                 <span className="flex items-center gap-2"><CheckCircle size={16} className="text-green-500" /> Ready to Serve</span>
                                 <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{readyOrders.length}</span>
                             </div>
-                            <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-hide">
+                            <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-hide min-h-[200px] md:min-h-0">
                                 <AnimatePresence>
                                     {readyOrders.map(order => (
                                         <motion.div

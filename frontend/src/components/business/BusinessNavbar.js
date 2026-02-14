@@ -3,7 +3,7 @@
 import React, { useState } from "react"; // Added useState
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, LayoutDashboard, UtensilsCrossed, Users, Settings, User, Menu, X, Monitor, Calendar } from "lucide-react";
+import { LogOut, LayoutDashboard, UtensilsCrossed, Users, Settings, User, Menu, X, Monitor, Calendar, FileText } from "lucide-react";
 import useAuthStore from "@/store/useAuthStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "next-themes";
@@ -70,6 +70,7 @@ export default function BusinessNavbar({ currentRestaurant }) {
                         {currentRestaurant && isOwner ? (
                             <nav className="flex items-center gap-1 text-sm font-medium text-muted-foreground mr-4">
                                 <NavLink href={`/business/owner/restros/${currentRestaurant._id}`} icon={LayoutDashboard} label="Dashboard" active={pathname === `/business/owner/restros/${currentRestaurant._id}`} />
+                                <NavLink href={`/business/owner/restros/${currentRestaurant._id}/orders`} icon={FileText} label="Orders" active={pathname.includes('/orders')} />
                                 <NavLink href={`/business/owner/restros/${currentRestaurant._id}/bookings`} icon={Calendar} label="Bookings" active={pathname.includes('/bookings')} />
                                 <NavLink href={`/business/owner/restros/${currentRestaurant._id}/menu`} icon={UtensilsCrossed} label="Menu" active={pathname.includes('/menu')} />
                                 <NavLink href={`/business/owner/restros/${currentRestaurant._id}/staff`} icon={Users} label="Staff" active={pathname.includes('/staff')} />
@@ -205,6 +206,7 @@ export default function BusinessNavbar({ currentRestaurant }) {
                                         <>
                                             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2">Manage {currentRestaurant.name}</div>
                                             <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/owner/restros/${currentRestaurant._id}`} icon={LayoutDashboard} label="Dashboard" active={pathname === `/business/owner/restros/${currentRestaurant._id}`} />
+                                            <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/owner/restros/${currentRestaurant._id}/orders`} icon={FileText} label="Orders" active={pathname.includes('/orders')} />
                                             <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/owner/restros/${currentRestaurant._id}/bookings`} icon={Calendar} label="Bookings" active={pathname.includes('/bookings')} />
                                             <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/owner/restros/${currentRestaurant._id}/menu`} icon={UtensilsCrossed} label="Menu Management" active={pathname.includes('/menu')} />
                                             <MobileNavLink onClick={() => setIsMobileMenuOpen(false)} href={`/business/owner/restros/${currentRestaurant._id}/staff`} icon={Users} label="Staff & Shifts" active={pathname.includes('/staff')} />
@@ -222,7 +224,7 @@ export default function BusinessNavbar({ currentRestaurant }) {
                     </>
                 )}
             </AnimatePresence>
-        </header>
+        </header >
     );
 }
 

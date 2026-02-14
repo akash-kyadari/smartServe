@@ -18,6 +18,14 @@ export default function Cart({ items, updateQuantity, handlePlaceOrder, onClear,
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        // Validation for stock/availability
+        const unavailableItems = items.filter(item => !item.isAvailable || (item.stock !== null && item.stock <= 0));
+
+        if (unavailableItems.length > 0) {
+            alert(`Please remove unavailable items: ${unavailableItems.map(i => i.name).join(', ')}`);
+            return;
+        }
+
         if (!name || !phone) {
             // Shake animation or toast could be added here
             alert("Please provide your Name and Phone to place order.");
@@ -105,35 +113,49 @@ export default function Cart({ items, updateQuantity, handlePlaceOrder, onClear,
                             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
                                 {/* Items */}
                                 <div className="space-y-3">
-                                    {items.map((item) => (
-                                        <div key={item._id} className="flex gap-3 items-center bg-card/50 p-2 rounded-xl border border-border/50">
-                                            {/* Optional Image per item in cart? No, keep it compact */}
-                                            <div className="w-10 h-10 rounded-lg bg-secondary shrink-0 overflow-hidden">
-                                                {item.image ? <img src={item.image} className="w-full h-full object-cover" /> : null}
-                                            </div>
+                                    {items.map((item) => {
+                                        const maxReached = item.stock !== null && item.stock !== undefined && item.quantity >= item.stock;
+                                        const isUnavailable = !item.isAvailable || (item.stock !== null && item.stock <= 0);
 
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-bold text-sm text-foreground truncate">{item.name}</p>
-                                                <p className="text-xs text-primary font-bold">₹{item.price * item.quantity}</p>
-                                            </div>
+                                        return (
+                                            <div key={item._id} className={`flex gap-3 items-center bg-card/50 p-2 rounded-xl border ${isUnavailable ? 'border-red-200 bg-red-50/50' : 'border-border/50'}`}>
+                                                {/* Optional Image per item in cart? No, keep it compact */}
+                                                <div className="w-10 h-10 rounded-lg bg-secondary shrink-0 overflow-hidden">
+                                                    {item.image ? <img src={item.image} className={`w-full h-full object-cover ${isUnavailable ? 'opacity-50 grayscale' : ''}`} /> : null}
+                                                </div>
 
-                                            <div className="flex items-center gap-2 bg-background border border-border rounded-lg p-0.5 shadow-sm">
-                                                <button
-                                                    onClick={() => updateQuantity(item, -1)}
-                                                    className="w-6 h-6 flex items-center justify-center hover:bg-secondary rounded-md transition-colors text-foreground"
-                                                >
-                                                    <Minus className="w-3 h-3" />
-                                                </button>
-                                                <span className="text-xs font-bold w-4 text-center tabular-nums">{item.quantity}</span>
-                                                <button
-                                                    onClick={() => updateQuantity(item, 1)}
-                                                    className="w-6 h-6 flex items-center justify-center hover:bg-secondary rounded-md transition-colors text-foreground"
-                                                >
-                                                    <Plus className="w-3 h-3" />
-                                                </button>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`font-bold text-sm truncate ${isUnavailable ? 'text-red-500 line-through' : 'text-foreground'}`}>{item.name}</p>
+                                                    {!isUnavailable && <p className="text-xs text-primary font-bold">₹{item.price * item.quantity}</p>}
+
+                                                    {isUnavailable ? (
+                                                        <span className="text-[10px] text-red-600 font-bold flex items-center gap-1">
+                                                            <X size={10} /> Currently Unavailable
+                                                        </span>
+                                                    ) : maxReached ? (
+                                                        <span className="text-[10px] text-amber-500 font-bold">Max stock reached</span>
+                                                    ) : null}
+                                                </div>
+
+                                                <div className="flex items-center gap-2 bg-background border border-border rounded-lg p-0.5 shadow-sm">
+                                                    <button
+                                                        onClick={() => updateQuantity(item, -1)}
+                                                        className="w-6 h-6 flex items-center justify-center hover:bg-secondary rounded-md transition-colors text-foreground"
+                                                    >
+                                                        <Minus className="w-3 h-3" />
+                                                    </button>
+                                                    <span className="text-xs font-bold w-4 text-center tabular-nums">{item.quantity}</span>
+                                                    <button
+                                                        onClick={() => !maxReached && !isUnavailable && updateQuantity(item, 1)}
+                                                        disabled={maxReached || isUnavailable}
+                                                        className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors ${maxReached || isUnavailable ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-secondary text-foreground'}`}
+                                                    >
+                                                        <Plus className="w-3 h-3" />
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
 
                                 {/* Guest Details */}

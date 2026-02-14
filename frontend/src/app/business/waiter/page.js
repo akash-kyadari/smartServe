@@ -10,10 +10,10 @@ import { getSocket } from "@/lib/socket";
 import axios from "axios";
 import TableDetailsModal from "@/components/business/waiter/TableDetailsModal";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") + "/api";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL) + "/api";
 
 function WaiterPOSPageContent() {
-    const { fetchRestaurantById, restaurants, isLoading } = useRestaurantStore();
+    const { fetchRestaurantById, restaurants, isLoading, updateTableStatus } = useRestaurantStore();
     const { user } = useAuthStore();
     const userId = user?._id || user?.id;
     const [orders, setOrders] = useState([]);
@@ -122,49 +122,81 @@ function WaiterPOSPageContent() {
         console.log("Joined Staff Room:", restaurantId);
         socket.emit("join_staff_room", { restaurantId, userId });
 
-        const handleUpdate = (data) => {
-            console.log("Realtime Update Received:", data);
-
-            // Check for Bill Request Notification
-            if (data.requestBill && (data.assignedWaiterId === userId || user.roles.includes('manager') || user.roles.includes('owner'))) {
-                // Ideally use a Toast here, but alert for now or just console
-                console.log("New Bill Request for your table!");
-                // playSound() could go here
+        // Service/Bill Updates
+        const handleServiceUpdate = (data) => {
+            if (data && data.tableId) {
+                updateTableStatus(restaurantId, data.tableId, { requestService: data.requestService });
+            } else {
+                fetchData();
             }
-
-            fetchData();
         };
 
-        const handleTableFreed = ({ tableId }) => {
-            console.log("Table Freed:", tableId);
-            fetchData(); // Refetch everything to be safe
+        const handleBillUpdate = (data) => {
+            if (data && data.tableId) {
+                updateTableStatus(restaurantId, data.tableId, { requestBill: data.requestBill });
+                // Notify if for me
+                if (data.requestBill && (data.assignedWaiterId === userId || user.roles.includes('manager') || user.roles.includes('owner'))) {
+                    console.log("New Bill Request for your table!");
+                }
+            } else {
+                fetchData();
+            }
+        };
+
+        const handleTableFreed = (data) => {
+            if (data && data.tableId) {
+                updateTableStatus(restaurantId, data.tableId, {
+                    isOccupied: false,
+                    currentOrderId: null,
+                    assignedWaiterId: null,
+                    requestService: false,
+                    requestBill: false
+                });
+                // Also remove orders for this table locally
+                setOrders(prev => prev.filter(o => o.tableId !== data.tableId));
+            } else {
+                fetchData();
+            }
+        };
+
+        const handleTableUpdate = (data) => {
+            if (data && data.tableId) {
+                updateTableStatus(restaurantId, data.tableId, data);
+            } else {
+                fetchData();
+            }
         };
 
         const handleNewOrder = (newOrder) => {
             console.log("Socket: New Order Received", newOrder);
 
-            // OPTIMISTIC UPDATE: If assigned to me, show immediately
+            // Update Orders List
             const assignedId = newOrder.waiterId?._id || newOrder.waiterId;
-            if (assignedId && userId && assignedId.toString() === userId.toString()) {
+            const isJustWaiter = user.roles.includes('waiter') && !user.roles.includes('owner') && !user.roles.includes('manager');
+
+            // Show order if I'm not just a waiter, OR if it's assigned to me
+            if (!isJustWaiter || (assignedId && userId && assignedId.toString() === userId.toString())) {
                 setOrders(prev => {
                     if (prev.find(o => o._id === newOrder._id)) return prev;
                     return [newOrder, ...prev];
                 });
             }
 
-            fetchData(); // Refetch to ensure consistency
+            // Update Table Status (Critical for Red Color)
+            if (newOrder.tableId) {
+                updateTableStatus(restaurantId, newOrder.tableId, {
+                    isOccupied: true,
+                    currentOrderId: newOrder._id
+                });
+            }
         };
 
         const handleOrderUpdate = (updatedOrder) => {
-            console.log("Socket: Order Update Received", updatedOrder);
-
+            console.log("Socket: Order Update Received", updatedOrder.status);
             setOrders(prev => prev.map(o => o._id === updatedOrder._id ? updatedOrder : o));
-
-            fetchData(); // Refetch to update status/payment
         };
 
         const handleStaffUpdate = ({ staffId, isActive }) => {
-            console.log("Socket: Staff Update", staffId, isActive);
             if (staffId === userId || staffId === user?._id) {
                 setIsOnline(isActive);
             }
@@ -175,36 +207,44 @@ function WaiterPOSPageContent() {
             if (status.isActive !== undefined && !status.isActive) setIsRestroActive(false);
             else if (status.isOpen !== undefined && !status.isOpen) setIsRestroActive(false);
             else setIsRestroActive(true);
-
             fetchData();
         };
 
         socket.on("new_order", handleNewOrder);
         socket.on("order_update", handleOrderUpdate);
+
+        socket.on("table_update", handleTableUpdate);
         socket.on("table_freed", handleTableFreed);
-        socket.on("table_service_update", handleUpdate);
-        socket.on("table_bill_update", handleUpdate);
+
+        socket.on("table_service_update", handleServiceUpdate);
+        socket.on("table_bill_update", handleBillUpdate);
+
         socket.on("staff_update", handleStaffUpdate);
         socket.on("restaurant_status_update", handleRestroStatusUpdate);
 
         return () => {
             socket.off("new_order", handleNewOrder);
             socket.off("order_update", handleOrderUpdate);
+            socket.off("table_update", handleTableUpdate);
             socket.off("table_freed", handleTableFreed);
-            socket.off("table_service_update", handleUpdate);
-            socket.off("table_bill_update", handleUpdate);
+            socket.off("table_service_update", handleServiceUpdate);
+            socket.off("table_bill_update", handleBillUpdate);
             socket.off("staff_update", handleStaffUpdate);
             socket.off("restaurant_status_update", handleRestroStatusUpdate);
         };
-    }, [restaurantId, user, fetchData, userId]);
+    }, [restaurantId, user, fetchData, userId, updateTableStatus]);
 
     // Service Request Action (for main/dashboard view)
     const handleResolveService = async (tableId) => {
         try {
+            // Optimistic Update
+            updateTableStatus(restaurantId, tableId, { requestService: false });
+
             await axios.post(`${API_URL}/restaurants/public/${restaurantId}/table/${tableId}/service`, { active: false });
-            fetchData();
+            // Socket will confirm, no need to fetch
         } catch (err) {
             console.error(err);
+            fetchData();
         }
     };
 
@@ -443,7 +483,7 @@ function WaiterPOSPageContent() {
                             <div className="bg-card border-l-4 border-purple-500 p-4 rounded-lg shadow-sm">
                                 <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">My Tables</span>
                                 <div className="text-2xl font-bold text-purple-600 mt-1">
-                                    {tables.filter(t => t.assignedWaiterId === userId).length}
+                                    {tables.filter(t => t.assignedWaiterId && userId && t.assignedWaiterId.toString() === userId.toString()).length}
                                 </div>
                             </div>
                             <div className="bg-card border-l-4 border-blue-500 p-4 rounded-lg shadow-sm">
@@ -462,10 +502,14 @@ function WaiterPOSPageContent() {
 
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
                                 {tables.map((table) => {
-                                    const isMyTable = table.assignedWaiterId === userId;
-                                    const hasRequest = table.requestService;
+                                    // Robust check for ownership: Table assigned OR Active Order assigned
                                     const tableOrder = orders.find(o => o.tableId === table.id && !o.isSessionClosed && o.status !== 'COMPLETED');
+                                    const isAttachedToOrder = tableOrder && tableOrder.waiterId && (tableOrder.waiterId._id || tableOrder.waiterId) === userId;
+                                    const isAssignedToTable = table.assignedWaiterId && userId && table.assignedWaiterId.toString() === userId.toString();
+
+                                    const isMyTable = isAssignedToTable || isAttachedToOrder;
                                     const isReady = tableOrder?.status === 'READY';
+                                    const hasRequest = table.requestService;
 
                                     return (
                                         <motion.div

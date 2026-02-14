@@ -1,17 +1,20 @@
 import express from "express";
-import { placeOrder, updateOrderStatus, freeTable, getTableOrders, getRestaurantActiveOrders, markTableAsPaid } from "../controllers/orderController.js";
+import { placeOrder, updateOrderStatus, freeTable, getTableOrders, getRestaurantActiveOrders, markTableAsPaid, getOrderHistory } from "../controllers/orderController.js";
 import { protect, authorize, optionalProtect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+import { validatePlaceOrder, validateUpdateStatus } from "../middleware/validator.js";
+
 // Staff Routes (Protected) - Must come before parameterized routes to avoid conflicts
 router.get("/active/:restaurantId", protect, authorize('owner', 'manager', 'waiter', 'kitchen'), getRestaurantActiveOrders);
-router.put("/:orderId/status", protect, authorize('owner', 'manager', 'waiter', 'kitchen'), updateOrderStatus);
+router.put("/:orderId/status", protect, authorize('owner', 'manager', 'waiter', 'kitchen'), validateUpdateStatus, updateOrderStatus);
 router.put("/table/:tableId/pay", protect, authorize('owner', 'manager', 'waiter'), markTableAsPaid); // New route
 router.post("/free-table", protect, authorize('owner', 'manager', 'waiter'), freeTable);
+router.get("/history/:restaurantId", protect, authorize('owner', 'manager'), getOrderHistory);
 
 // Customer Routes
-router.post("/place", optionalProtect, placeOrder);
+router.post("/place", optionalProtect, validatePlaceOrder, placeOrder);
 // Generic parameterized route must be LAST
 router.get("/:restaurantId/:tableId", getTableOrders);
 

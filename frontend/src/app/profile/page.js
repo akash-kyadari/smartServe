@@ -7,7 +7,7 @@ import Navbar from "@/components/Navbar";
 import { User, Mail, Phone, Calendar, Edit2, Save, X, Loader2, Utensils } from "lucide-react";
 import axios from "axios";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") + "/api";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL) + "/api";
 
 export default function ProfilePage() {
     const { user, isAuthenticated, isLoading: authLoading } = useAuthStore();

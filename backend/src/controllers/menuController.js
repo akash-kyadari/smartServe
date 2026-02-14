@@ -1,4 +1,6 @@
 import Restaurant from "../models/RestaurantModel.js";
+import logger from "../utils/logger.js";
+import { io } from "../socket/socket.js";
 
 // Get all menu items for a restaurant
 export const getMenuItems = async (req, res) => {
@@ -16,7 +18,7 @@ export const getMenuItems = async (req, res) => {
             categories: restaurant.categories || []
         });
     } catch (error) {
-        console.log("Error in getMenuItems:", error.message);
+        logger.error("Error in getMenuItems:", error.message);
         res.status(500).json({ success: false, message: "Error fetching menu items", error: error.message });
     }
 };
@@ -25,7 +27,7 @@ export const getMenuItems = async (req, res) => {
 export const addMenuItem = async (req, res) => {
     try {
         const { restaurantId } = req.params;
-        const { name, description, price, category, isVeg, isAvailable, preparationTime, image } = req.body;
+        const { name, description, price, category, isVeg, stock, isAvailable, preparationTime, image } = req.body;
 
         // Validation
         if (!name || !price) {
@@ -54,6 +56,7 @@ export const addMenuItem = async (req, res) => {
             category: category || "Uncategorized",
             isVeg: isVeg !== undefined ? Boolean(isVeg) : true,
             isAvailable: isAvailable !== undefined ? Boolean(isAvailable) : true,
+            stock: stock !== undefined && stock !== "" ? Number(stock) : null,
             preparationTime: preparationTime ? Number(preparationTime) : 15,
             image: image || "",
             addons: []
@@ -65,13 +68,19 @@ export const addMenuItem = async (req, res) => {
         // Get the newly added item (last item in array)
         const addedItem = restaurant.menu[restaurant.menu.length - 1];
 
+        // Emit Update
+        io.to(`restro_public_${restaurantId}`).emit("menu_full_update", {
+            action: "add",
+            item: addedItem
+        });
+
         res.status(201).json({
             success: true,
             message: "Menu item added successfully",
             menuItem: addedItem
         });
     } catch (error) {
-        console.log("Error in addMenuItem:", error.message);
+        logger.error("Error in addMenuItem:", error.message);
         res.status(500).json({ success: false, message: "Error adding menu item", error: error.message });
     }
 };
@@ -81,7 +90,7 @@ export const updateMenuItem = async (req, res) => {
     try {
         const { restaurantId, itemId } = req.params;
         const updates = req.body;
-        console.log(`Updating menu item: ${itemId} in ${restaurantId}`, updates);
+        logger.info(`Updating menu item: ${itemId} in ${restaurantId}`, updates);
 
         const restaurant = await Restaurant.findById(restaurantId);
         if (!restaurant) {
@@ -93,41 +102,42 @@ export const updateMenuItem = async (req, res) => {
             return res.status(403).json({ success: false, message: "Not authorized to update menu items in this restaurant" });
         }
 
-        // Construct update fields with dot notation for Atomic Set
-        const updateFields = {};
-        if (updates.name !== undefined) updateFields["menu.$.name"] = updates.name.trim();
-        if (updates.description !== undefined) updateFields["menu.$.description"] = updates.description.trim();
-        if (updates.price !== undefined) {
-            if (Number(updates.price) < 0) return res.status(400).json({ success: false, message: "Price must be positive" });
-            updateFields["menu.$.price"] = Number(updates.price);
-        }
-        if (updates.category !== undefined) updateFields["menu.$.category"] = updates.category;
-        if (updates.isVeg !== undefined) updateFields["menu.$.isVeg"] = Boolean(updates.isVeg);
-        if (updates.isAvailable !== undefined) updateFields["menu.$.isAvailable"] = Boolean(updates.isAvailable);
-        if (updates.preparationTime !== undefined) updateFields["menu.$.preparationTime"] = Number(updates.preparationTime);
-        if (updates.image !== undefined) updateFields["menu.$.image"] = updates.image;
-
-        // Atomic Update
-        const updatedRestaurant = await Restaurant.findOneAndUpdate(
-            { "_id": restaurantId, "menu._id": itemId },
-            { "$set": updateFields },
-            { new: true, runValidators: true }
-        );
-
-        if (!updatedRestaurant) {
+        // Find the item to update
+        const menuItem = restaurant.menu.id(itemId);
+        if (!menuItem) {
             return res.status(404).json({ success: false, message: "Menu item not found" });
         }
 
-        // Get the updated item to return
-        const updatedItem = updatedRestaurant.menu.id(itemId);
+        // Helper to update fields
+        if (updates.name !== undefined) menuItem.name = updates.name.trim();
+        if (updates.description !== undefined) menuItem.description = updates.description.trim();
+        if (updates.price !== undefined) menuItem.price = Number(updates.price);
+        if (updates.category !== undefined) menuItem.category = updates.category;
+        if (updates.isVeg !== undefined) menuItem.isVeg = Boolean(updates.isVeg);
+        if (updates.isAvailable !== undefined) menuItem.isAvailable = Boolean(updates.isAvailable);
+        if (updates.preparationTime !== undefined) menuItem.preparationTime = Number(updates.preparationTime);
+        if (updates.image !== undefined) menuItem.image = updates.image;
+        if (updates.stock !== undefined) menuItem.stock = updates.stock === "" || updates.stock === null ? null : Number(updates.stock);
+
+        await restaurant.save();
+
+        // Emit Stock/Availability Update (or full update really)
+        io.to(`restro_public_${restaurantId}`).emit("menu_stock_update", [{
+            _id: menuItem._id,
+            stock: menuItem.stock,
+            isAvailable: menuItem.isAvailable,
+            // also include price/name/etc if needed, but for now stock/avail is critical realtime
+            name: menuItem.name,
+            price: menuItem.price
+        }]);
 
         res.status(200).json({
             success: true,
             message: "Menu item updated successfully",
-            menuItem: updatedItem
+            menuItem: menuItem
         });
     } catch (error) {
-        console.log("Error in updateMenuItem:", error.message);
+        logger.error("Error in updateMenuItem:", error.message);
         res.status(500).json({ success: false, message: "Error updating menu item", error: error.message });
     }
 };
@@ -136,37 +146,27 @@ export const updateMenuItem = async (req, res) => {
 export const deleteMenuItem = async (req, res) => {
     try {
         const { restaurantId, itemId } = req.params;
-        console.log(`Deleting menu item: Restro=${restaurantId}, Item=${itemId}, User=${req.user._id}`);
 
         const restaurant = await Restaurant.findById(restaurantId);
-        if (!restaurant) {
-            return res.status(404).json({ success: false, message: "Restaurant not found" });
-        }
+        if (!restaurant) return res.status(404).json({ success: false, message: "Restaurant not found" });
 
         // Verify ownership
         if (restaurant.owner.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ success: false, message: "Not authorized to delete menu items from this restaurant" });
+            return res.status(403).json({ success: false, message: "Not authorized" });
         }
 
-        // Use atomic pull to remove item
-        const result = await Restaurant.findByIdAndUpdate(
-            restaurantId,
-            { $pull: { menu: { _id: itemId } } },
-            { new: true } // Return updated doc
-        );
+        // Use atomic pull
+        await Restaurant.findByIdAndUpdate(restaurantId, { $pull: { menu: { _id: itemId } } });
 
-        if (!result) {
-            return res.status(404).json({ success: false, message: "Failed to delete item" });
-        }
-
-        console.log("Item deleted successfully");
-
-        res.status(200).json({
-            success: true,
-            message: "Menu item deleted successfully"
+        // Emit Update
+        io.to(`restro_public_${restaurantId}`).emit("menu_full_update", {
+            action: "delete",
+            itemId: itemId
         });
+
+        res.status(200).json({ success: true, message: "Menu item deleted successfully" });
     } catch (error) {
-        console.log("Error in deleteMenuItem:", error.message);
+        logger.error("Error in deleteMenuItem:", error.message);
         res.status(500).json({ success: false, message: "Error deleting menu item", error: error.message });
     }
 };
@@ -175,46 +175,40 @@ export const deleteMenuItem = async (req, res) => {
 export const toggleMenuItemAvailability = async (req, res) => {
     try {
         const { restaurantId, itemId } = req.params;
+        const { isAvailable } = req.body || {}; // Safety check for empty body
 
         const restaurant = await Restaurant.findById(restaurantId);
-        if (!restaurant) {
-            return res.status(404).json({ success: false, message: "Restaurant not found" });
-        }
+        if (!restaurant) return res.status(404).json({ success: false, message: "Restaurant not found" });
 
-        // Verify ownership or manager role
+        // Auth
         const isOwner = restaurant.owner.toString() === req.user._id.toString();
-        const isManager = restaurant.staff.some(
-            s => s.user.toString() === req.user._id.toString() && s.role === 'manager'
-        );
+        const isManager = restaurant.staff.some(s => s.user.toString() === req.user._id.toString() && s.role === 'manager');
 
-        if (!isOwner && !isManager) {
-            return res.status(403).json({ success: false, message: "Not authorized to modify menu availability" });
-        }
+        if (!isOwner && !isManager) return res.status(403).json({ success: false, message: "Not authorized" });
 
-        // Find item to get current status
         const menuItem = restaurant.menu.id(itemId);
-        if (!menuItem) {
-            return res.status(404).json({ success: false, message: "Menu item not found" });
-        }
+        if (!menuItem) return res.status(404).json({ success: false, message: "Item not found" });
 
-        const newState = !menuItem.isAvailable;
-
-        // Atomic update
-        await Restaurant.updateOne(
-            { "_id": restaurantId, "menu._id": itemId },
-            { "$set": { "menu.$.isAvailable": newState } }
-        );
-
-        // Update local object for response
+        // Toggle or Set
+        const newState = isAvailable !== undefined ? isAvailable : !menuItem.isAvailable;
         menuItem.isAvailable = newState;
+
+        await restaurant.save();
+
+        // Emit Update
+        io.to(`restro_public_${restaurantId}`).emit("menu_stock_update", [{
+            _id: menuItem._id,
+            isAvailable: menuItem.isAvailable,
+            stock: menuItem.stock
+        }]);
 
         res.status(200).json({
             success: true,
-            message: `Menu item ${newState ? 'enabled' : 'disabled'} successfully`,
-            menuItem: menuItem
+            message: `Menu item ${newState ? 'enabled' : 'disabled'}`,
+            menuItem
         });
     } catch (error) {
-        console.log("Error in toggleMenuItemAvailability:", error.message);
-        res.status(500).json({ success: false, message: "Error toggling menu item availability", error: error.message });
+        logger.error("Error in toggleMenuItemAvailability:", error.message);
+        res.status(500).json({ success: false, message: "Error toggling menu item", error: error.message });
     }
 };

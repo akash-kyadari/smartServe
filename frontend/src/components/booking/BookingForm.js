@@ -5,7 +5,7 @@ import axios from 'axios';
 import { Calendar, Clock, User, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") + "/api";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL) + "/api";
 
 export default function BookingForm({ restaurantId, tables, onClose }) {
     const [step, setStep] = useState(1);

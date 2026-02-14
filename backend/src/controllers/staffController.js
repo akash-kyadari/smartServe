@@ -3,7 +3,8 @@ import Restaurant from "../models/RestaurantModel.js";
 import Order from "../models/OrderModel.js";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
-import { io } from "../socket/socket.js";
+import { io, isUserConnected } from "../socket/socket.js";
+import logger from "../utils/logger.js";
 
 // Add a new staff member
 export const addStaff = async (req, res) => {
@@ -88,9 +89,8 @@ export const addStaff = async (req, res) => {
                 joinedAt: restaurant.staff[restaurant.staff.length - 1].joinedAt
             }
         });
-
     } catch (error) {
-        console.error("Error adding staff:", error);
+        logger.error("Error adding staff:", error);
         res.status(500).json({ success: false, message: "Error adding staff member", error: error.message });
     }
 };
@@ -121,7 +121,7 @@ export const removeStaff = async (req, res) => {
         res.status(200).json({ success: true, message: "Staff member removed successfully" });
 
     } catch (error) {
-        console.error("Error removing staff:", error);
+        logger.error("Error removing staff:", error);
         res.status(500).json({ success: false, message: "Error removing staff member", error: error.message });
     }
 };
@@ -141,13 +141,14 @@ export const getStaff = async (req, res) => {
 
         const staffList = restaurant.staff.map(member => {
             if (!member.user) return null;
+            const isConnected = isUserConnected(id, member.user._id);
             return {
                 _id: member.user._id,
                 name: member.user.name,
                 email: member.user.email,
                 role: member.role,
                 shift: member.shift,
-                isActive: member.isActive,
+                isActive: member.isActive && isConnected, // Only active if online AND set to active
                 joinedAt: member.joinedAt
             };
         }).filter(Boolean);
@@ -155,7 +156,7 @@ export const getStaff = async (req, res) => {
         res.status(200).json({ success: true, staff: staffList });
 
     } catch (error) {
-        console.error("Error fetching staff:", error);
+        logger.error("Error fetching staff:", error);
         res.status(500).json({ success: false, message: "Error fetching staff", error: error.message });
     }
 };
@@ -188,7 +189,7 @@ export const updateStaffPassword = async (req, res) => {
         res.status(200).json({ success: true, message: "Staff password updated successfully" });
 
     } catch (error) {
-        console.error("Error updating staff password:", error);
+        logger.error("Error updating staff password:", error);
         res.status(500).json({ success: false, message: "Error updating staff password", error: error.message });
     }
 };
@@ -255,13 +256,11 @@ export const toggleStaffStatus = async (req, res) => {
         res.json({ success: true, message: `Status updated to ${active ? "Online" : "Offline"}`, isActive: active });
 
     } catch (error) {
-        console.error("Error toggling staff status:", error);
+        logger.error("Error toggling staff status:", error);
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 };
 
-// Get detailed analytics for all staff members
-// Get detailed analytics for all staff members
 // Get detailed analytics for all staff members
 export const getStaffAnalytics = async (req, res) => {
     try {
@@ -285,7 +284,7 @@ export const getStaffAnalytics = async (req, res) => {
         // Mongoose automatically casts string ID to ObjectId for 'find'
         const restroIdObj = new mongoose.Types.ObjectId(id);
 
-        console.log(`[StaffAnalytics] 🟢 Fetching orders for Restro: ${id}`);
+        logger.info(`[StaffAnalytics] 🟢 Fetching orders for Restro: ${id}`);
 
         // Fetch ALL valid orders for today
         const orders = await Order.find({
@@ -294,7 +293,7 @@ export const getStaffAnalytics = async (req, res) => {
             status: { $ne: 'CANCELLED' }
         }).lean();
 
-        console.log(`[StaffAnalytics] Found ${orders.length} orders to process.`);
+        logger.info(`[StaffAnalytics] Found ${orders.length} orders to process.`);
 
         // 3. Robust Aggregation
         const statsMap = {}; // waiterId -> { ordersCount, totalSales }
@@ -313,11 +312,11 @@ export const getStaffAnalytics = async (req, res) => {
                 statsMap[responsibleWaiterId].ordersCount += 1;
                 statsMap[responsibleWaiterId].totalSales += (order.totalAmount || 0);
             } else {
-                console.log(`[StaffAnalytics] ⚠️ Order ${order._id} has NO waiter assigned.`);
+                logger.warn(`[StaffAnalytics] ⚠️ Order ${order._id} has NO waiter assigned.`);
             }
         });
 
-        console.log(`[StaffAnalytics] 📊 Stats Map Keys:`, Object.keys(statsMap));
+        logger.info(`[StaffAnalytics] 📊 Stats Map Keys:`, Object.keys(statsMap));
 
         let totalStaff = 0;
         let activeStaff = 0;
@@ -330,15 +329,19 @@ export const getStaffAnalytics = async (req, res) => {
 
             const userId = member.user._id.toString();
             totalStaff++;
-            if (member.isActive) activeStaff++;
+
+            const isConnected = isUserConnected(id, userId);
+            const isEffectiveActive = member.isActive && isConnected;
+
+            if (isEffectiveActive) activeStaff++;
 
             // Stats
             const memberStats = statsMap[userId] || { ordersCount: 0, totalSales: 0 };
-            console.log(`[StaffAnalytics] 👤 Staff: ${member.user.name} (ID: ${userId}) -> Stats Found: ${!!statsMap[userId]} (Orders: ${memberStats.ordersCount})`);
+            logger.debug(`[StaffAnalytics] 👤 Staff: ${member.user.name} (ID: ${userId}) -> Stats Found: ${!!statsMap[userId]} (Orders: ${memberStats.ordersCount})`);
 
             todaySales += memberStats.totalSales;
 
-            // Calculate Active Tables
+            // Calculate active tables
             const memberActiveTables = restaurant.tables.filter(t =>
                 t.assignedWaiterId && t.assignedWaiterId.toString() === userId && t.isOccupied
             ).length;
@@ -350,7 +353,7 @@ export const getStaffAnalytics = async (req, res) => {
                 name: member.user.name,
                 email: member.user.email,
                 role: member.role,
-                isActive: member.isActive,
+                isActive: isEffectiveActive,
                 avatar: member.user.avatar,
                 // Analytics
                 activeTables: memberActiveTables,
@@ -372,7 +375,7 @@ export const getStaffAnalytics = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Error fetching staff analytics:", error);
+        logger.error("Error fetching staff analytics:", error);
         res.status(500).json({ success: false, message: "Error fetching staff analytics", error: error.message });
     }
 };

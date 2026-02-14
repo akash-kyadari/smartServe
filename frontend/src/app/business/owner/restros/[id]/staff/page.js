@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import socketService from "@/services/socketService";
 import { toast } from "react-hot-toast";
 
-const StaffCard = ({ staff, stats, onRemove, onChangePassword, onToggleStatus, showStats = true }) => {
+const StaffCard = React.memo(({ staff, stats, onRemove, onChangePassword, onToggleStatus, showStats = true }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     // Calculate Active Status dynamically
@@ -21,6 +21,7 @@ const StaffCard = ({ staff, stats, onRemove, onChangePassword, onToggleStatus, s
     const staffEmail = staff.user?.email || "No Email";
     const staffId = staff.user?._id || staff.user;
 
+    // Use default stats if not provided, memoized to prevent re-renders on every parent render if stats is improved
     const staffStats = stats || { activeTables: 0, todayOrders: 0, todaySales: 0 };
 
     return (
@@ -137,7 +138,7 @@ const StaffCard = ({ staff, stats, onRemove, onChangePassword, onToggleStatus, s
             </div>
         </motion.div>
     );
-};
+});
 
 // ... AddStaffModal and ChangePasswordModal components (keeping them as is but ensuring imports work)
 
@@ -361,18 +362,23 @@ export default function StaffPage() {
     const restaurantId = params.id;
 
     // Get restaurant data
+    // Get restaurant data
     const {
         restaurants,
         addStaffMember,
         removeStaffMember,
         updateStaffPassword,
-        toggleStaffStatus, // Add this
-        fetchRestaurantById
+        toggleStaffStatus,
+        setStaffActiveStatus, // New action
+        fetchRestaurantById,
+        dashboardData, // Access store data
+        setDashboardData // Access setter
     } = useRestaurantStore();
     const currentRestaurant = restaurants.find(r => r._id === restaurantId);
 
-    // State for analytics
-    const [stats, setStats] = useState({
+    // State for analytics - Initialize from store if available
+    const storedStats = dashboardData[restaurantId]?.staffStats;
+    const [stats, setStats] = useState(storedStats || {
         totalStaff: 0,
         activeStaff: 0,
         activeTables: 0,
@@ -381,17 +387,27 @@ export default function StaffPage() {
     });
 
     // Fetch detailed staff analytics
-    const fetchAnalytics = useCallback(async () => {
+    const fetchAnalytics = useCallback(async (force = false, signal) => {
         if (!restaurantId) return;
+
+        // Cache check
+        const cached = useRestaurantStore.getState().dashboardData[restaurantId]?.staffStats;
+        if (!force && cached) {
+            console.log("Using cached staff stats");
+            return;
+        }
+
         try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/restaurants/${restaurantId}/staff/analytics`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 },
-                credentials: 'include'
+                credentials: 'include',
+                signal
             });
             const data = await response.json();
             if (data.success) {
+                // ... logic
                 // Transform array to map for easier lookup by staff ID
                 const performanceMap = {};
                 if (data.staffPerformance) {
@@ -400,28 +416,34 @@ export default function StaffPage() {
                     });
                 }
 
-
-
-                setStats({
+                const newStats = {
                     totalStaff: data.totalStaff || 0,
                     activeStaff: data.activeStaff || 0,
                     activeTables: data.activeTables || 0,
                     todaySales: data.todaySales || 0,
                     staffPerformance: performanceMap
-                });
+                };
+
+                setStats(newStats);
+                setDashboardData(restaurantId, { staffStats: newStats });
             }
         } catch (error) {
+            if (error.name === 'AbortError') return;
             console.error("Failed to fetch staff analytics", error);
         }
-    }, [restaurantId]);
+    }, [restaurantId, setDashboardData]);
 
     // Initial Fetch
     useEffect(() => {
-        fetchAnalytics();
+        const controller = new AbortController();
+        fetchAnalytics(false, controller.signal);
+
         // Also fetch restaurant data if missing
         if (!currentRestaurant) {
             fetchRestaurantById(restaurantId);
         }
+
+        return () => controller.abort();
     }, [fetchAnalytics, restaurantId, currentRestaurant, fetchRestaurantById]);
 
     // Socket Listeners for Realtime Updates
@@ -431,25 +453,38 @@ export default function StaffPage() {
         const socket = socketService.connect();
         socketService.joinStaffRoom(restaurantId, "owner"); // Join as owner/manager
 
-        const handleUpdate = () => {
-            console.log("Socket update received, fetching analytics...");
-            fetchAnalytics(); // Refresh stats on any relevant event
-            fetchRestaurantById(restaurantId); // Refresh staff list/status
+        const handleStaffUpdate = (data) => {
+            console.log("Socket: staff_update received", data);
+            // Optimistic update without refetch
+            if (data && data.staffId) {
+                setStaffActiveStatus(restaurantId, data.staffId, data.isActive);
+            }
         };
 
-        // Listen for events that affect staff stats
-        socket.on("staff_update", handleUpdate);
-        socket.on("new_order", handleUpdate);
-        socket.on("order_update", handleUpdate);
-        socket.on("table_freed", handleUpdate);
+        const handleStatsUpdate = () => {
+            console.log("Socket: stats related update received, fetching analytics...");
+            fetchAnalytics(true);
+            // We might want to fetch restaurant data periodically or on specific events, 
+            // but for stats, analytics endpoint is enough.
+        };
+
+        const handleFullRefresh = () => {
+            fetchRestaurantById(restaurantId);
+        };
+
+        // Listen for events
+        socket.on("staff_update", handleStaffUpdate); // Only local update
+        socket.on("new_order", handleStatsUpdate);
+        socket.on("order_update", handleStatsUpdate);
+        socket.on("table_freed", handleStatsUpdate);
 
         return () => {
-            socket.off("staff_update", handleUpdate);
-            socket.off("new_order", handleUpdate);
-            socket.off("order_update", handleUpdate);
-            socket.off("table_freed", handleUpdate);
+            socket.off("staff_update", handleStaffUpdate);
+            socket.off("new_order", handleStatsUpdate);
+            socket.off("order_update", handleStatsUpdate);
+            socket.off("table_freed", handleStatsUpdate);
         };
-    }, [restaurantId, fetchAnalytics, fetchRestaurantById]);
+    }, [restaurantId, fetchAnalytics, setStaffActiveStatus, fetchRestaurantById]);
 
 
     // Get staff from restaurant object
