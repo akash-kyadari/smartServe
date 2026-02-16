@@ -40,8 +40,7 @@ function WaiterPOSPageContent() {
             });
 
             if (staffMember) {
-                // Only update if explicit status is available
-                // console.log("Staff member found in restro data:", staffMember.user, "Active:", staffMember.isActive);
+                // Standard sync with backend data
                 setIsOnline(staffMember.isActive);
             } else {
                 // Do NOT revert to false here. 
@@ -57,18 +56,9 @@ function WaiterPOSPageContent() {
                 setIsRestroActive(true);
             }
         }
-        // Priority 2: Fallback Logic Removed
-        // We do NOT want to use 'workingAt' snapshot from login because it is stale.
-        // If real-time restaurant data (Priority 1) didn't find the user, we should just keep current state.
-        /*
-        else if (user && restaurantId && !isLoading) {
-             const employment = user.workingAt?.find(w => 
-                 (w.restaurantId === restaurantId || w.restaurantId?._id === restaurantId)
-             );
-             setIsOnline(employment?.isActive ?? true);
-        }
-        */
-    }, [user, restaurantId, currentRestaurant, userId, isLoading]);
+        // Priority 2: Removed stale fallback logic. 
+        // We rely on real-time data or socket/optimistic state only.
+    }, [user, restaurantId, currentRestaurant, userId, isLoading, isOnline]);
 
     const toggleOnlineStatus = async () => {
         try {
@@ -135,7 +125,6 @@ function WaiterPOSPageContent() {
         socketService.connect();
         console.log("Joined Staff Room:", restaurantId);
         socketService.joinStaffRoom(restaurantId, userId);
-        setIsOnline(true); // Optimistically set online on join
 
         // Service/Bill Updates
         const handleServiceUpdate = (data) => {

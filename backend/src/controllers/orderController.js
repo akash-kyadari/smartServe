@@ -93,26 +93,36 @@ export const placeOrder = async (req, res) => {
             }
         }
 
-        // DEDUCT STOCK
+        // DEDUCT STOCK (Atomic Bulk Write)
+        const stockUpdates = [];
         const updatedItems = [];
+
         for (const item of items) {
             const menuItem = restaurant.menu.id(item.menuItemId || item._id);
             if (menuItem && menuItem.stock !== null && menuItem.stock !== undefined) {
-                menuItem.stock -= item.quantity;
-                // Auto-unavailable if 0?
-                if (menuItem.stock <= 0) {
-                    menuItem.stock = 0; // Prevent negative
-                    // Optional: menuItem.isAvailable = false; 
-                }
+                // Prepare Atomic Update
+                stockUpdates.push({
+                    updateOne: {
+                        filter: { _id: restaurantId, "menu._id": menuItem._id },
+                        update: { $inc: { "menu.$.stock": -item.quantity } }
+                    }
+                });
+
+                // Helper for socket emission (approximate new stock)
+                let newStock = menuItem.stock - item.quantity;
+                if (newStock < 0) newStock = 0;
+
                 updatedItems.push({
                     _id: menuItem._id,
-                    stock: menuItem.stock,
+                    stock: newStock,
                     isAvailable: menuItem.isAvailable
                 });
             }
         }
-        // Save restaurant to update stock
-        await restaurant.save();
+
+        if (stockUpdates.length > 0) {
+            await Restaurant.bulkWrite(stockUpdates);
+        }
 
         // Emit Stock Update
         if (updatedItems.length > 0) {
@@ -127,15 +137,11 @@ export const placeOrder = async (req, res) => {
             items,
             totalAmount,
             customerDetails,
-            customerDetails,
             waiterId: null, // Placeholder, will set below
             status: "PLACED", // Default state
             paymentStatus: "PENDING",
         });
 
-        // ---------------------------------------------------------
-        // Waiter Assignment Logic (Load Balancing)
-        // ---------------------------------------------------------
         // ---------------------------------------------------------
         // Waiter Assignment Logic (Load Balancing) & Availability Check
         // ---------------------------------------------------------
@@ -190,7 +196,7 @@ export const placeOrder = async (req, res) => {
 
                 // Assign the one with least load
                 assignedWaiterId = waiterLoad[0].waiterId;
-                table.assignedWaiterId = assignedWaiterId;
+                // table.assignedWaiterId = assignedWaiterId; // Don't modify local object if not needed for logic
                 logger.info(`[OrderPlacement] Auto-assigned waiter: ${assignedWaiterId} (Load: ${waiterLoad[0].load})`);
             } else {
                 logger.warn("[OrderPlacement] No active waiters found even though check passed?");
@@ -207,13 +213,20 @@ export const placeOrder = async (req, res) => {
 
         await newOrder.save();
 
-        // Update Table Status (Lock it)
-        table.isOccupied = true;
-        table.currentOrderId = newOrder._id;
+        // Update Table Status (Lock it) - ATOMIC UPDATE
+        // Using updateOne to modify SPECIFIC fields of the table subdocument
+        const updateFields = {
+            "tables.$.isOccupied": true,
+            "tables.$.currentOrderId": newOrder._id
+        };
         if (newOrder.waiterId) {
-            table.assignedWaiterId = newOrder.waiterId;
+            updateFields["tables.$.assignedWaiterId"] = newOrder.waiterId;
         }
-        await restaurant.save();
+
+        await Restaurant.updateOne(
+            { _id: restaurantId, "tables._id": tableId },
+            { $set: updateFields }
+        );
 
         // Populate waiter details for socket emission
         await newOrder.populate("waiterId", "name email");
