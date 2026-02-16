@@ -334,13 +334,13 @@ export const markTableAsPaid = async (req, res) => {
 };
 
 // Free Table (End of Dining Session)
-// Free Table (End of Dining Session)
 export const freeTable = async (req, res) => {
     try {
         const { restaurantId, tableId } = req.body;
         const user = req.user; // From protect middleware
 
-        const restaurant = await Restaurant.findById(restaurantId);
+        // 1. Authorization & Validation (Read-Only Check)
+        const restaurant = await Restaurant.findById(restaurantId).select('tables owner staff');
         if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
 
         const table = restaurant.tables.id(tableId);
@@ -354,6 +354,7 @@ export const freeTable = async (req, res) => {
         }
 
         // Check for ANY active unpaid/unserved orders before closing
+        // (This remains unchanged as it checks Orders collection)
         const unresolvedOrders = await Order.findOne({
             tableId,
             restaurantId,
@@ -369,22 +370,28 @@ export const freeTable = async (req, res) => {
             });
         }
 
-        // Mark last order as session closed (actually we do bulk update below)
-        // logic below is fine.
-
-        // Also close ANY other active orders for this table (bulk close)
+        // 2. Perform Updates
+        // Bulk close orders
         await Order.updateMany(
             { tableId, restaurantId, isSessionClosed: { $ne: true } },
             { $set: { isSessionClosed: true } }
         );
 
-        // Reset Table
-        table.isOccupied = false;
-        table.currentOrderId = null;
-        table.assignedWaiterId = null; // Clear assigned waiter
-        table.requestService = false; // Clear service request
-        table.requestBill = false; // Clear bill request
-        await restaurant.save();
+        // Atomic Update for Restaurant Table
+        // Use array filters or specific positional operator if we had the index, 
+        // but 'tables._id' query works safest.
+        await Restaurant.updateOne(
+            { _id: restaurantId, "tables._id": tableId },
+            {
+                $set: {
+                    "tables.$.isOccupied": false,
+                    "tables.$.currentOrderId": null,
+                    "tables.$.assignedWaiterId": null,
+                    "tables.$.requestService": false,
+                    "tables.$.requestBill": false
+                }
+            }
+        );
 
         // SOCKET: Notify clear
         io.to(`table_${restaurantId}_${tableId}`).emit("table_freed", { message: "Table cleared" });
