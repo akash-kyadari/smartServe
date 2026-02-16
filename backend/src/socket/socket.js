@@ -25,39 +25,41 @@ io.on("connection", (socket) => {
     socket.on("join_staff_room", async (data) => {
         let restroId, userId;
 
+        // Parse Data
         if (typeof data === 'string') {
             restroId = data;
-        } else {
-            restroId = data.restaurantId;
+        } else if (typeof data === 'object' && data !== null) {
+            restroId = data.restaurantId || data.restroId;
             userId = data.userId;
+        }
+
+        if (!restroId) {
+            console.error("Join Room Failed: No Restaurant ID");
+            return;
         }
 
         socket.join(`restro_staff_${restroId}`);
         console.log(`Socket ${socket.id} joined staff room: restro_staff_${restroId}`);
 
         if (userId) {
-            // Attach metadata to socket for cleanup
             socket.userId = userId;
             socket.restroId = restroId;
 
-            // Join a private user room to track active tabs
-            socket.join(`user_${userId}`);
-            console.log(`Socket ${socket.id} joined user room: user_${userId}`);
-
-            // Update DB Status to Online
+            // Mark Online in DB
             try {
+                // Must match the element in the array
                 await Restaurant.updateOne(
                     { _id: restroId, "staff.user": userId },
                     { $set: { "staff.$.isActive": true } }
                 );
 
-                // Broadcast update immediately
+                // Broadcast
                 io.to(`restro_staff_${restroId}`).emit("staff_update", {
                     staffId: userId,
                     isActive: true
                 });
             } catch (err) {
-                console.error("Error setting staff status to online:", err);
+                console.error("Socket Connect Error (DB Update):", err);
             }
         }
     });
@@ -92,8 +94,11 @@ io.on("connection", (socket) => {
 
             if (room) {
                 for (const sid of room) {
+                    // In socket.io v4+, io.sockets.sockets is a Map
                     const s = io.sockets.sockets.get(sid);
-                    if (s && s.userId === socket.userId) {
+                    // Check if another socket exists for the same user ID
+                    // We must ensure we don't count the current disconnecting socket
+                    if (s && s.userId === socket.userId && s.id !== socket.id) {
                         stillConnected = true;
                         break;
                     }
@@ -101,6 +106,7 @@ io.on("connection", (socket) => {
             }
 
             if (!stillConnected) {
+                console.log(`User ${socket.userId} went offline completely.`);
                 // Update DB Status to Offline
                 try {
                     await Restaurant.updateOne(
@@ -115,6 +121,8 @@ io.on("connection", (socket) => {
                 } catch (err) {
                     console.error("Error setting staff status to offline:", err);
                 }
+            } else {
+                console.log(`User ${socket.userId} still has active tabs. Status kept Online.`);
             }
         }
     });

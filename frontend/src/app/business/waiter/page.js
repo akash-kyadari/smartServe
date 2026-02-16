@@ -44,6 +44,9 @@ function WaiterPOSPageContent() {
                 // console.log("Staff member found in restro data:", staffMember.user, "Active:", staffMember.isActive);
                 setIsOnline(staffMember.isActive);
             } else {
+                // Do NOT revert to false here. 
+                // If the user isn't found in the staff list (e.g., during a partial update or race condition),
+                // we should trust the local state or previous state rather than forcing them offline.
                 console.warn("Staff member not found in restaurant staff list during sync:", userId);
             }
 
@@ -54,16 +57,17 @@ function WaiterPOSPageContent() {
                 setIsRestroActive(true);
             }
         }
-        // Priority 2: Fallback to User Profile (Login time snapshot)
-        // ONLY if restaurant fetch is done and we genuinely don't have it (though that's an error case usually)
-        // Or if restaurantId exists but for some reason we don't have the object yet (and not loading?)
+        // Priority 2: Fallback Logic Removed
+        // We do NOT want to use 'workingAt' snapshot from login because it is stale.
+        // If real-time restaurant data (Priority 1) didn't find the user, we should just keep current state.
+        /*
         else if (user && restaurantId && !isLoading) {
-            const employment = user.workingAt?.find(w =>
-                (w.restaurantId === restaurantId || w.restaurantId?._id === restaurantId)
-            );
-            // Default to true if not found (legacy) or use actual value
-            setIsOnline(employment?.isActive ?? true);
+             const employment = user.workingAt?.find(w => 
+                 (w.restaurantId === restaurantId || w.restaurantId?._id === restaurantId)
+             );
+             setIsOnline(employment?.isActive ?? true);
         }
+        */
     }, [user, restaurantId, currentRestaurant, userId, isLoading]);
 
     const toggleOnlineStatus = async () => {
