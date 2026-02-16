@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import useRestaurantStore from "@/store/useRestaurantStore";
 import useAuthStore from "@/store/useAuthStore";
 import { Loader2, ClipboardList, CheckCircle, Bell, ChefHat, DollarSign, User } from "lucide-react"; // Removed unused imports
@@ -20,6 +20,7 @@ function WaiterPOSPageContent() {
     const [selectedTable, setSelectedTable] = useState(null);
     const [isOnline, setIsOnline] = useState(false);
     const [isRestroActive, setIsRestroActive] = useState(true);
+    const isTogglingRef = useRef(false);
 
     // Update title
     useEffect(() => {
@@ -41,7 +42,10 @@ function WaiterPOSPageContent() {
 
             if (staffMember) {
                 // Standard sync with backend data
-                setIsOnline(staffMember.isActive);
+                // Only sync if we are NOT currently toggling/optimizing
+                if (!isTogglingRef.current) {
+                    setIsOnline(staffMember.isActive);
+                }
             } else {
                 // Do NOT revert to false here. 
                 // If the user isn't found in the staff list (e.g., during a partial update or race condition),
@@ -56,11 +60,12 @@ function WaiterPOSPageContent() {
                 setIsRestroActive(true);
             }
         }
-        // Priority 2: Removed stale fallback logic. 
-        // We rely on real-time data or socket/optimistic state only.
-    }, [user, restaurantId, currentRestaurant, userId, isLoading, isOnline]);
+    }, [user, restaurantId, currentRestaurant, userId, isLoading]); // Removed isOnline from deps to prevent loops
 
     const toggleOnlineStatus = async () => {
+        if (isTogglingRef.current) return;
+        isTogglingRef.current = true;
+
         try {
             const newState = !isOnline; // Desired state
 
@@ -75,9 +80,14 @@ function WaiterPOSPageContent() {
         } catch (err) {
             console.error("Failed to toggle status", err);
             // Revert State
-            setIsOnline(isOnline);
+            setIsOnline(!isOnline); // Use !isOnline logic for revert in strict mode, or just previous val
             // Show Alert
             alert(err.response?.data?.message || "Failed to update status. Please try again.");
+        } finally {
+            // Keep the latch closed for a moment to prevent stale fetches from reverting the UI
+            setTimeout(() => {
+                isTogglingRef.current = false;
+            }, 2000);
         }
     };
 
