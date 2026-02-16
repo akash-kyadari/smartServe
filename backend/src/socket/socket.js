@@ -59,13 +59,18 @@ io.on("connection", (socket) => {
             return;
         }
 
+        // Set properties BEFORE joining rooms to avoid race conditions
+        if (userId) {
+            socket.userId = userId;
+            socket.restroId = restroId;
+            // Also join user specific room for messaging
+            socket.join(`user_${userId}`);
+        }
+
         socket.join(`restro_staff_${restroId}`);
         console.log(`Socket ${socket.id} joined staff room: restro_staff_${restroId}`);
 
         if (userId) {
-            socket.userId = userId;
-            socket.restroId = restroId;
-
             // Mark Online in DB
             try {
                 // Must match the element in the array
