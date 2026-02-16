@@ -32,7 +32,7 @@ const isUserConnected = (restaurantId, userId) => {
     for (const socketId of room) {
         const socket = io.sockets.sockets.get(socketId);
         // Compare as string to be safe
-        if (socket && socket.userId && socket.userId.toString() === userId.toString()) {
+        if (socket && socket.userId && String(socket.userId) === String(userId)) {
             return true;
         }
     }

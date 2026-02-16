@@ -41,9 +41,11 @@ function WaiterPOSPageContent() {
             });
 
             if (staffMember) {
-                // Standard sync with backend data
-                // Only sync if we are NOT currently toggling/optimizing
-                if (!isTogglingRef.current) {
+                // PROTECTION: Prioritize local 'Online' state if API returns 'Offline' 
+                // (handling race conditions where API is slightly stale vs Socket)
+                if (isOnline && !staffMember.isActive) {
+                    console.warn("Ignoring stale API 'Offline' status - keeping Online based on local session");
+                } else if (!isTogglingRef.current) {
                     setIsOnline(staffMember.isActive);
                 }
             } else {

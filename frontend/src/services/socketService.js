@@ -7,6 +7,7 @@ class SocketService {
         this.socket = null;
         this.connected = false;
         this.currentRestroId = null; // Track current viewing room for reconnection
+        this.currentStaffRoom = null; // Track staff room for reconnection
     }
 
     connect() {
@@ -33,6 +34,9 @@ class SocketService {
             if (this.currentRestroId) {
                 this.joinRestaurantRoom(this.currentRestroId);
             }
+            if (this.currentStaffRoom) {
+                this.joinStaffRoom(this.currentStaffRoom.restaurantId, this.currentStaffRoom.userId);
+            }
         });
 
         this.socket.on('disconnect', () => {
@@ -53,6 +57,7 @@ class SocketService {
             this.socket = null;
             this.connected = false;
             this.currentRestroId = null;
+            this.currentStaffRoom = null;
         }
     }
 
@@ -68,6 +73,7 @@ class SocketService {
     // Join staff room (for restaurant staff)
     joinStaffRoom(restaurantId, userId) {
         if (this.socket && restaurantId) {
+            this.currentStaffRoom = { restaurantId, userId }; // Store for reconnection
             this.socket.emit('join_staff_room', { restaurantId, userId });
             console.log(`Joined staff room: ${restaurantId}`);
         }
