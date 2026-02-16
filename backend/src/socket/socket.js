@@ -18,6 +18,27 @@ const io = new Server(server, {
     },
 });
 
+// Helper to check if user is connected
+const isUserConnected = (restaurantId, userId) => {
+    // If not userId, return false
+    if (!userId || !restaurantId) return false;
+
+    // Check if socket with this userId exists in the room
+    const roomId = `restro_staff_${restaurantId}`;
+    const room = io.sockets.adapter.rooms.get(roomId);
+
+    if (!room) return false;
+
+    for (const socketId of room) {
+        const socket = io.sockets.sockets.get(socketId);
+        // Compare as string to be safe
+        if (socket && socket.userId && socket.userId.toString() === userId.toString()) {
+            return true;
+        }
+    }
+    return false;
+};
+
 io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
@@ -106,21 +127,31 @@ io.on("connection", (socket) => {
             }
 
             if (!stillConnected) {
-                console.log(`User ${socket.userId} went offline completely.`);
-                // Update DB Status to Offline
-                try {
-                    await Restaurant.updateOne(
-                        { _id: socket.restroId, "staff.user": socket.userId },
-                        { $set: { "staff.$.isActive": false } }
-                    );
+                // DEBOUNCE OFFLINE STATUS: Wait 5 seconds to handle page refreshes
+                // or temporary network blips.
+                setTimeout(async () => {
+                    // console.log(`Checking connection status for user ${socket.userId} after grace period...`);
+                    try {
+                        const isNowConnected = isUserConnected(socket.restroId, socket.userId);
 
-                    io.to(roomId).emit("staff_update", {
-                        staffId: socket.userId,
-                        isActive: false
-                    });
-                } catch (err) {
-                    console.error("Error setting staff status to offline:", err);
-                }
+                        if (!isNowConnected) {
+                            console.log(`User ${socket.userId} confirmed offline after grace period.`);
+                            await Restaurant.updateOne(
+                                { _id: socket.restroId, "staff.user": socket.userId },
+                                { $set: { "staff.$.isActive": false } }
+                            );
+
+                            io.to(roomId).emit("staff_update", {
+                                staffId: socket.userId,
+                                isActive: false
+                            });
+                        } else {
+                            console.log(`User ${socket.userId} re-connected during grace period. Aborting offline update.`);
+                        }
+                    } catch (err) {
+                        console.error("Error setting staff status to offline:", err);
+                    }
+                }, 5000);
             } else {
                 console.log(`User ${socket.userId} still has active tabs. Status kept Online.`);
             }
@@ -128,18 +159,5 @@ io.on("connection", (socket) => {
     });
 });
 
-// Helper to check if user is connected
-const isUserConnected = (restaurantId, userId) => {
-    const roomId = `restro_staff_${restaurantId}`;
-    const room = io.sockets.adapter.rooms.get(roomId);
-    if (!room) return false;
-    for (const socketId of room) {
-        const socket = io.sockets.sockets.get(socketId);
-        if (socket && socket.userId === userId.toString()) {
-            return true;
-        }
-    }
-    return false;
-};
 
 export { app, io, server, isUserConnected };

@@ -135,6 +135,7 @@ function WaiterPOSPageContent() {
         socketService.connect();
         console.log("Joined Staff Room:", restaurantId);
         socketService.joinStaffRoom(restaurantId, userId);
+        setIsOnline(true); // Optimistically set online on join
 
         // Service/Bill Updates
         const handleServiceUpdate = (data) => {
