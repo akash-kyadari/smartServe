@@ -136,12 +136,18 @@ function WaiterPOSPageContent() {
         };
 
         const handleBillUpdate = (data) => {
+            console.log("Bill Update:", data);
             if (data && data.tableId) {
+                // Optimistic Local Update
                 updateTableStatus(restaurantId, data.tableId, { requestBill: data.requestBill });
-                // Notify if for me
-                if (data.requestBill && (data.assignedWaiterId === userId || user.roles.includes('manager') || user.roles.includes('owner'))) {
-                    console.log("New Bill Request for your table!");
+
+                // Notify via Alert/Sound if relevant
+                const assignedId = (data.assignedWaiterId?._id || data.assignedWaiterId)?.toString();
+                if (data.requestBill && (assignedId === userId?.toString() || user.roles.includes('manager') || user.roles.includes('owner'))) {
+                    // Could add toast here
                 }
+                // Force sync to be sure
+                fetchData();
             } else {
                 fetchData();
             }
@@ -271,7 +277,7 @@ function WaiterPOSPageContent() {
     const billRequests = tables.filter(t => t.requestBill && (
         user.roles.includes('owner') ||
         user.roles.includes('manager') ||
-        t.assignedWaiterId === userId
+        (t.assignedWaiterId?._id || t.assignedWaiterId)?.toString() === userId?.toString()
     ));
 
     if (isLoading && !currentRestaurant) {
