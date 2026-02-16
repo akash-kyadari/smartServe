@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { LayoutDashboard, ChefHat, CheckCircle, QrCode, ArrowRight, TrendingUp, Zap, Shield, Smartphone, User, LogOut, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import useAuthStore from "@/store/useAuthStore";
+import Footer from "@/components/Footer";
+import BusinessHowItWorks from "@/components/business/BusinessHowItWorks";
 
 export default function BusinessHome() {
     const [isMobile, setIsMobile] = useState(false);
@@ -106,7 +108,7 @@ export default function BusinessHome() {
                                 { title: "Customer", desc: "Scan, Browse & Pay", link: "/customer-demo", icon: QrCode, gradient: "from-orange-400 to-pink-500", features: ["QR ordering", "Secure payments", "Saved receipts"] },
                                 { title: "Kitchen", desc: "Ticket Management", link: "/kitchen-demo", icon: ChefHat, gradient: "from-slate-700 to-slate-900", features: ["Realtime tickets", "Prep timers", "Order batching"] },
                                 { title: "Waiters", desc: "Service & Billing", link: "/waiter-demo", icon: CheckCircle, gradient: "from-blue-500 to-cyan-400", features: ["Table management", "Split bills", "Integrated POS"] },
-                                { title: "Manager", desc: "Analytics & Admin", link: "/admin-demo", icon: LayoutDashboard, gradient: "from-emerald-500 to-teal-400", features: ["Revenue reports", "Item performance", "Staff analytics"] },
+                                { title: "Owner", desc: "Analytics & Admin", link: "/admin-demo", icon: LayoutDashboard, gradient: "from-emerald-500 to-teal-400", features: ["Revenue reports", "Item performance", "Staff analytics"] },
                             ].map((role) => (
                                 <Link key={role.title} href={role.link} className="group relative overflow-hidden rounded-3xl shadow-2xl transition-transform duration-300 hover:scale-105 h-72 flex flex-col">
                                     <div className={`absolute inset-0 bg-gradient-to-br ${role.gradient} opacity-90 group-hover:opacity-100 transition-opacity`} />
@@ -214,10 +216,13 @@ export default function BusinessHome() {
                     </div>
                 </section>
 
-                <div className="mt-8 text-center text-sm text-gray-500">
+                <div className="mt-8 text-center text-sm text-gray-500 pb-8">
                     <p>If you're a guest, go back to the main site — <Link href="/" className="text-sunset underline">Visit homepage</Link>.</p>
                 </div>
             </div>
+
+            <BusinessHowItWorks />
+            <Footer />
         </div>
     );
 }

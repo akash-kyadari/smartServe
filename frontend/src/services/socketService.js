@@ -73,6 +73,14 @@ class SocketService {
         }
     }
 
+    // Join owner room (for real-time dashboard updates)
+    joinOwnerRoom(restaurantId) {
+        if (this.socket && restaurantId) {
+            this.socket.emit('join_owner_room', restaurantId);
+            console.log(`Joined owner room: ${restaurantId}`);
+        }
+    }
+
     // Join table room (for customers at a table)
     joinTableRoom(restaurantId, tableId) {
         if (this.socket && restaurantId && tableId) {
@@ -177,6 +185,12 @@ class SocketService {
         }
     }
 
+    onReviewAdded(callback) {
+        if (this.socket) {
+            this.socket.on('review_added', callback);
+        }
+    }
+
     // Remove listeners
     offNewOrder(callback) {
         if (this.socket) {
@@ -223,6 +237,12 @@ class SocketService {
     offRestaurantStatusUpdate(callback) {
         if (this.socket) {
             this.socket.off('restaurant_status_update', callback);
+        }
+    }
+
+    offReviewAdded(callback) {
+        if (this.socket) {
+            this.socket.off('review_added', callback);
         }
     }
 

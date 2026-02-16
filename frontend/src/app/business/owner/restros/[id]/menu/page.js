@@ -70,7 +70,7 @@ export default function MenuPage() {
             isAvailable: true,
             preparationTime: "15",
             image: "",
-            stock: ""
+            servingInfo: ""
         });
         setIsModalOpen(true);
     };
@@ -87,7 +87,7 @@ export default function MenuPage() {
             isAvailable: item.isAvailable !== undefined ? item.isAvailable : true,
             preparationTime: item.preparationTime?.toString() || "15",
             image: item.image || "",
-            stock: item.stock !== undefined && item.stock !== null ? item.stock.toString() : ""
+            servingInfo: item.servingInfo || ""
         });
         setIsModalOpen(true);
     };
@@ -103,7 +103,7 @@ export default function MenuPage() {
                 ...formData,
                 price: parseFloat(formData.price),
                 preparationTime: parseInt(formData.preparationTime),
-                stock: formData.stock === "" ? null : parseInt(formData.stock)
+                servingInfo: formData.servingInfo
             };
 
             if (editingItem) {
@@ -268,15 +268,11 @@ export default function MenuPage() {
 
                                 <p className="text-xs text-muted-foreground line-clamp-1 truncate">{item.description}</p>
                                 {/* Stock Display */}
-                                <div className="mt-1">
-                                    {item.stock !== null && item.stock !== undefined ? (
-                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${item.stock > 10 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'}`}>
-                                            Stock: {item.stock}
-                                        </span>
-                                    ) : (
-                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">Unlimited</span>
-                                    )}
-                                </div>
+                                {item.servingInfo && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium">
+                                        {item.servingInfo}
+                                    </span>
+                                )}
                             </div>
 
                             {/* Actions & Price */}
@@ -430,16 +426,15 @@ export default function MenuPage() {
                                     <div className="flex gap-6">
                                         <div className="flex-1">
                                             <label className="block text-sm font-medium text-foreground mb-1">
-                                                Daily Stock <span className="text-xs text-muted-foreground font-normal">(Leave empty for unlimited)</span>
+                                                Serving Info <span className="text-xs text-muted-foreground font-normal">(e.g., Serves 2, 500ml)</span>
                                             </label>
                                             <input
-                                                type="number"
-                                                name="stock"
-                                                value={formData.stock}
+                                                type="text"
+                                                name="servingInfo"
+                                                value={formData.servingInfo}
                                                 onChange={handleInputChange}
-                                                min="0"
                                                 className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-sunset"
-                                                placeholder="Unlimited"
+                                                placeholder="e.g. 1 Bowl"
                                             />
                                         </div>
                                     </div>

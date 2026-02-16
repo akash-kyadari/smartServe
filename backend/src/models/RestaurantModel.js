@@ -85,7 +85,7 @@ const RestaurantSchema = new mongoose.Schema(
                 category: String,
                 isVeg: Boolean,
                 isAvailable: { type: Boolean, default: true },
-                stock: { type: Number, default: null }, // null = unlimited
+                servingInfo: String, // e.g. "Serves 2", "500ml"
                 preparationTime: Number, // minutes
                 addons: [
                     {

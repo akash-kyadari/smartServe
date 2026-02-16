@@ -8,6 +8,7 @@ import useRestaurantStore from "@/store/useRestaurantStore";
 import useAuthStore from "@/store/useAuthStore";
 import socketService from "@/services/socketService";
 import axios from "axios";
+import RatingsReviews from "@/components/business/RatingsReviews";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL) + "/api";
 
@@ -34,7 +35,7 @@ const KPICard = React.memo(({ title, value, sub, icon: Icon, trend }) => (
 ));
 
 const RevenueChart = React.memo(({ data }) => (
-    <div className="bg-card text-card-foreground p-6 rounded-xl shadow-sm border border-border col-span-2">
+    <div className="bg-card text-card-foreground p-6 rounded-xl shadow-sm border border-border lg:col-span-2 h-full">
         <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold">Revenue Overview (Last 7 Days)</h3>
         </div>
@@ -61,9 +62,14 @@ const RevenueChart = React.memo(({ data }) => (
 ));
 
 const PopularDishes = React.memo(({ data }) => (
-    <div className="bg-card text-card-foreground p-6 rounded-xl shadow-sm border border-border">
-        <h3 className="font-bold mb-6">Popular Dishes (Last 30 Days)</h3>
-        <div className="space-y-5">
+    <div className="bg-card text-card-foreground rounded-xl shadow-sm border border-border h-full flex flex-col overflow-hidden">
+        <div className="p-6 border-b border-border">
+            <h3 className="font-bold flex items-center justify-between">
+                Popular Dishes
+                <span className="text-xs font-normal text-muted-foreground bg-secondary px-2 py-1 rounded-full">30 Days</span>
+            </h3>
+        </div>
+        <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1 min-h-[300px] max-h-[400px]">
             {data?.map((d) => (
                 <div key={d.name}>
                     <div className="flex justify-between text-sm mb-1.5">
@@ -93,14 +99,16 @@ const StaffOverview = React.memo(({ staff }) => {
     });
 
     return (
-        <div className="bg-card text-card-foreground p-6 rounded-xl shadow-sm border border-border h-fit">
-            <h3 className="font-bold mb-4 flex items-center justify-between">
-                Staff Status
-                <span className="text-xs font-normal text-muted-foreground bg-secondary px-2 py-1 rounded-full">
-                    {staff?.filter(s => s.isActive).length || 0} Online
-                </span>
-            </h3>
-            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+        <div className="bg-card text-card-foreground rounded-xl shadow-sm border border-border h-full flex flex-col overflow-hidden">
+            <div className="p-6 border-b border-border">
+                <h3 className="font-bold flex items-center justify-between">
+                    Staff Status
+                    <span className="text-xs font-normal text-muted-foreground bg-secondary px-2 py-1 rounded-full">
+                        {staff?.filter(s => s.isActive).length || 0} Online
+                    </span>
+                </h3>
+            </div>
+            <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-[300px] max-h-[400px]">
                 {sortedStaff.map((s) => (
                     <div key={s._id} className={`flex items-center justify-between ${!s.isActive && 'opacity-50'}`}>
                         <div className="flex items-center gap-3">
@@ -125,28 +133,7 @@ const StaffOverview = React.memo(({ staff }) => {
     );
 });
 
-const LowStockAlert = React.memo(({ menu }) => {
-    const lowStockItems = menu?.filter(i => i.stock !== null && i.stock !== undefined && i.stock <= 5 && i.isAvailable) || [];
-    if (lowStockItems.length === 0) return null;
 
-    return (
-        <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 p-4 rounded-xl shadow-sm">
-            <h3 className="font-bold text-red-700 dark:text-red-400 mb-2 flex items-center gap-2">
-                <AlertTriangle size={18} /> Low Stock Alert
-            </h3>
-            <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
-                {lowStockItems.map(item => (
-                    <div key={item._id} className="flex justify-between items-center text-sm">
-                        <span className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-[70%]">{item.name}</span>
-                        <span className="font-bold text-red-600 dark:text-red-400 bg-white dark:bg-black/20 px-2 py-0.5 rounded-full text-xs">
-                            {item.stock} left
-                        </span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-});
 
 export default function RestaurantDashboard() {
     const params = useParams();
@@ -223,6 +210,13 @@ export default function RestaurantDashboard() {
     }, [params.id, isAuthenticated]); // Reduced dependencies to avoid re-fetch loops
 
     // Socket Integration handled in Layout.js
+    // BUT we need to join the owner room for reviews specifically
+    useEffect(() => {
+        if (params.id && (user.roles.includes('owner') || user.roles.includes('manager'))) {
+            const socket = socketService.connect();
+            socketService.joinOwnerRoom(params.id);
+        }
+    }, [params.id, user]);
 
 
     if (!currentRestaurant) {
@@ -325,12 +319,28 @@ export default function RestaurantDashboard() {
             </div>
 
             {/* Charts & Staff */}
+            {/* Charts & Staff & Ratings */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Row 1 */}
                 <RevenueChart data={analytics.revenue} />
-                <div className="space-y-6">
-                    <LowStockAlert menu={currentRestaurant.menu} />
-                    <PopularDishes data={analytics.popularDishes} />
+
+                <div className="flex flex-col h-full">
+
                     <StaffOverview staff={currentRestaurant.staff} />
+                </div>
+
+                {/* Row 2 */}
+                {/* Row 2 */}
+                <div className="lg:col-span-2 h-full">
+                    <RatingsReviews
+                        restaurantId={params.id}
+                        initialReviews={currentRestaurant.reviews}
+                        initialRatings={currentRestaurant.ratings}
+                    />
+                </div>
+
+                <div className="h-full">
+                    <PopularDishes data={analytics.popularDishes} />
                 </div>
             </div>
 

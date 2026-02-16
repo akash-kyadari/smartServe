@@ -228,7 +228,7 @@ export const getBookings = async (req, res) => {
             [bookings, total] = await Promise.all([
                 Booking.find(query)
                     .populate('restaurantId', 'name address phone tables')
-                    .sort({ date: 1, startTime: 1 })
+                    .sort({ date: -1, startTime: 1 })
                     .skip(Number(skip))
                     .limit(Number(limit))
                     .lean(),

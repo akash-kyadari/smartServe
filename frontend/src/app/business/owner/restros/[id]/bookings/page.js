@@ -21,6 +21,7 @@ function RestaurantBookingsContent() {
     // State
     const [bookings, setBookings] = useState(storedBookings.data || []);
     const [filterDate, setFilterDate] = useState(storedBookings.filters?.date || format(new Date(), "yyyy-MM-dd"));
+    const [showAllDates, setShowAllDates] = useState(false); // New state for "Show All"
 
     // Pagination State
     const [page, setPage] = useState(storedBookings.filters?.page || 1);
@@ -39,13 +40,14 @@ function RestaurantBookingsContent() {
 
         const fetchBookings = async (force = false) => {
             // Deduplication & Cache Check
-            const currentFilters = { date: filterDate, page };
+            const currentFilters = { date: filterDate, page, showAll: showAllDates };
             const stored = useRestaurantStore.getState().dashboardData[restaurantId]?.bookings;
 
             // If !force, and we have stored data matching current filters, skip fetch
             if (!force && stored &&
                 stored.filters?.date === filterDate &&
                 stored.filters?.page === page &&
+                stored.filters?.showAll === showAllDates &&
                 stored.data) {
 
                 setIsLoading(false);
@@ -57,10 +59,13 @@ function RestaurantBookingsContent() {
                 // Fetch bookings for the specific restaurant and date
                 const query = new URLSearchParams({
                     restaurantId: restaurantId,
-                    date: filterDate,
                     page: page,
                     limit: LIMIT
                 });
+
+                if (!showAllDates) {
+                    query.append('date', filterDate);
+                }
 
                 const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/bookings?${query.toString()}`, {
                     headers: {
@@ -135,12 +140,17 @@ function RestaurantBookingsContent() {
             socketService.offBookingCancelled(handleCancelledBooking);
         };
 
-    }, [restaurantId, filterDate, page, user]);
+    }, [restaurantId, filterDate, page, user, showAllDates]);
 
     // Handlers
     const handleDateChange = (e) => {
         setFilterDate(e.target.value);
         setPage(1); // Reset to first page
+    };
+
+    const handleToggleShowAll = (e) => {
+        setShowAllDates(e.target.checked);
+        setPage(1);
     };
 
     const handlePrevPage = () => {
@@ -166,16 +176,29 @@ function RestaurantBookingsContent() {
                     <p className="text-gray-500 text-sm mt-1">Real-time booking updates</p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3">
-                    {/* Date Picker */}
-                    <input
-                        type="date"
-                        value={filterDate}
-                        onChange={handleDateChange}
-                        className="px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 focus:ring-2 focus:ring-sunset outline-none text-gray-900 dark:text-white"
-                    />
-                </div>
             </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 items-end sm:items-center">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none bg-gray-100 dark:bg-slate-800 px-3 py-2 rounded-lg hover:bg-gray-200 transition-colors">
+                    <input
+                        type="checkbox"
+                        checked={showAllDates}
+                        onChange={handleToggleShowAll}
+                        className="w-4 h-4 rounded text-sunset focus:ring-sunset"
+                    />
+                    Show All Dates
+                </label>
+
+                {/* Date Picker (Disabled if key is checked) */}
+                <input
+                    type="date"
+                    value={filterDate}
+                    onChange={handleDateChange}
+                    disabled={showAllDates}
+                    className={`px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 focus:ring-2 focus:ring-sunset outline-none text-gray-900 dark:text-white ${showAllDates ? 'opacity-50 cursor-not-allowed' : ''}`}
+                />
+            </div>
+
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
@@ -197,7 +220,7 @@ function RestaurantBookingsContent() {
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col min-h-[500px]">
                 <div className="p-4 border-b border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/50 flex justify-between items-center">
                     <h3 className="font-semibold text-gray-900 dark:text-white">
-                        Bookings for {format(new Date(filterDate), "MMMM d, yyyy")}
+                        Bookings {showAllDates ? " (All Time)" : `for ${format(new Date(filterDate), "MMMM d, yyyy")}`}
                     </h3>
                     {isLoading && <Loader2 className="animate-spin text-gray-400" size={18} />}
                 </div>
@@ -276,7 +299,7 @@ function RestaurantBookingsContent() {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 }
 

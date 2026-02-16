@@ -7,6 +7,7 @@ import { Smartphone, Menu, X, Moon, Sun, Zap, TrendingUp, User, LogOut, Calendar
 import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
 import useAuthStore from "@/store/useAuthStore";
+import Footer from "@/components/Footer";
 
 // --- Components ---
 
@@ -298,48 +299,7 @@ const BentoGrid = () => {
 
 // RoleSelector moved to the business page. Keeping selection logic centralized on /business.
 
-const Footer = () => (
-  <footer className="bg-muted border-t border-border pt-16 pb-8 transition-colors duration-300">
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-12 mb-12">
-        <div className="col-span-2 md:col-span-1">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="h-8 w-8 bg-sunset rounded-lg flex items-center justify-center text-white font-black text-xl">S</div>
-            <span className="font-bold text-xl text-gray-900 dark:text-white">Smart Serve</span>
-          </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-            Fast, friendly ordering from your phone — enjoy more time eating and less time waiting.
-          </p>
-        </div>
-        <div>
-          <h4 className="font-bold text-gray-900 dark:text-white mb-4">For Diners</h4>
-          <ul className="space-y-3 text-sm text-gray-500 dark:text-gray-400">
-            <li><a href="#" className="hover:text-sunset transition-colors">How it works</a></li>
-            <li><a href="#" className="hover:text-sunset transition-colors">Explore menus</a></li>
-            <li><a href="#" className="hover:text-sunset transition-colors">Safety & privacy</a></li>
-          </ul>
-        </div>
-        <div>
-          <h4 className="font-bold text-gray-900 dark:text-white mb-4">Support</h4>
-          <ul className="space-y-3 text-sm text-gray-500 dark:text-gray-400">
-            <li><a href="#" className="hover:text-sunset transition-colors">Help Center</a></li>
-            <li><a href="#" className="hover:text-sunset transition-colors">Contact</a></li>
-          </ul>
-        </div>
-        <div>
-          <h4 className="font-bold text-gray-900 dark:text-white mb-4">Legal</h4>
-          <ul className="space-y-3 text-sm text-gray-500 dark:text-gray-400">
-            <li><a href="#" className="hover:text-sunset transition-colors">Privacy</a></li>
-            <li><a href="#" className="hover:text-sunset transition-colors">Terms</a></li>
-          </ul>
-        </div>
-      </div>
-      <div className="border-t border-gray-200 dark:border-slate-800 pt-6 text-center text-sm text-gray-400">
-        <p>&copy; 2026 Smart Serve. Made for great meals.</p>
-      </div>
-    </div>
-  </footer>
-);
+// Footer imported from components
 
 export default function Home() {
   const { checkAuth } = useAuthStore();
@@ -355,7 +315,37 @@ export default function Home() {
       <Navbar />
       <Hero />
       <BentoGrid />
+      <HowItWorks />
       <Footer />
     </div>
   );
 }
+
+const HowItWorks = () => {
+  return (
+    <section id="how-it-works" className="py-20 bg-background transition-colors duration-300">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <h2 className="text-base text-sunset font-semibold tracking-wide uppercase">Simple & Fast</h2>
+        <p className="mt-2 text-3xl md:text-4xl leading-8 font-extrabold tracking-tight text-gray-900 dark:text-white mb-16">
+          How it works
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+          {[
+            { title: "Scan QR", desc: "Scan the code on your table to view the menu instantly.", icon: <Smartphone size={32} /> },
+            { title: "Order Food", desc: "Select your favorites and place the order directly from your phone.", icon: <Menu size={32} /> },
+            { title: "Pay & Enjoy", desc: "Pay securely within the app and enjoy your meal.", icon: <Zap size={32} /> }
+          ].map((step, idx) => (
+            <div key={idx} className="flex flex-col items-center">
+              <div className="h-16 w-16 bg-secondary rounded-2xl flex items-center justify-center text-sunset mb-6 shadow-lg shadow-sunset/10">
+                {step.icon}
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{step.title}</h3>
+              <p className="text-gray-500 dark:text-gray-400 max-w-xs">{step.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};

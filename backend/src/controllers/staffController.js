@@ -148,7 +148,6 @@ export const getStaff = async (req, res) => {
 
         const staffList = restaurant.staff.map(member => {
             if (!member.user) return null;
-            const isConnected = isUserConnected(id, member.user._id);
             return {
                 _id: member.user._id,
                 name: member.user.name,
@@ -156,7 +155,7 @@ export const getStaff = async (req, res) => {
                 authProvider: member.user.authProvider,
                 role: member.role,
                 shift: member.shift,
-                isActive: member.isActive && isConnected, // Only active if online AND set to active
+                isActive: member.isActive, // Use DB status
                 joinedAt: member.joinedAt
             };
         }).filter(Boolean);
@@ -338,8 +337,7 @@ export const getStaffAnalytics = async (req, res) => {
             const userId = member.user._id.toString();
             totalStaff++;
 
-            const isConnected = isUserConnected(id, userId);
-            const isEffectiveActive = member.isActive && isConnected;
+            const isEffectiveActive = member.isActive;
 
             if (isEffectiveActive) activeStaff++;
 

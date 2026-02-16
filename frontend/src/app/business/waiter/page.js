@@ -34,12 +34,17 @@ function WaiterPOSPageContent() {
     useEffect(() => {
         // Priority 1: Check real-time restaurant staff data (most accurate)
         if (currentRestaurant && userId) {
-            const staffMember = currentRestaurant.staff?.find(s =>
-                (s.user === userId || s.user?._id === userId)
-            );
+            const staffMember = currentRestaurant.staff?.find(s => {
+                const sId = s.user?._id || s.user;
+                return sId?.toString() === userId?.toString();
+            });
 
             if (staffMember) {
+                // Only update if explicit status is available
+                // console.log("Staff member found in restro data:", staffMember.user, "Active:", staffMember.isActive);
                 setIsOnline(staffMember.isActive);
+            } else {
+                console.warn("Staff member not found in restaurant staff list during sync:", userId);
             }
 
             // Check Restaurant Status
@@ -286,45 +291,63 @@ function WaiterPOSPageContent() {
     return (
         <div className="flex flex-col h-screen bg-secondary/10 overflow-hidden relative">
             {/* Header */}
-            <header className="bg-card border-b border-border px-6 py-4 flex justify-between items-center shadow-sm z-10">
-                <div>
-                    <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-                        <ClipboardList className="text-sunset" />
-                        POS Terminal
-                    </h1>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                        Waiter Panel <span className="w-1 h-1 rounded-full bg-muted-foreground"></span> {user?.name}
-                    </p>
-                    <div className="mt-2 flex items-center gap-2">
+            <header className="bg-card border-b border-border px-4 md:px-6 py-3 md:py-4 flex flex-col md:flex-row md:justify-between md:items-center shadow-sm z-10 gap-3 md:gap-0">
+                <div className="flex justify-between items-center w-full md:w-auto">
+                    <div>
+                        <h1 className="text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
+                            <ClipboardList className="text-sunset" size={20} />
+                            POS Terminal
+                        </h1>
+                        <p className="text-[10px] md:text-xs text-muted-foreground flex items-center gap-1 mt-0.5 md:mt-1">
+                            Waiter Panel <span className="w-1 h-1 rounded-full bg-muted-foreground"></span> {user?.name}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2 md:hidden">
                         <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
                         <span className="text-xs font-medium text-foreground">{isOnline ? 'Online' : 'Offline'}</span>
                         <button
                             onClick={toggleOnlineStatus}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sunset focus:ring-offset-2 ml-2 ${isOnline ? 'bg-green-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sunset focus:ring-offset-2 ml-1 ${isOnline ? 'bg-green-600' : 'bg-gray-200 dark:bg-gray-700'}`}
                         >
                             <span className="sr-only">Toggle Online Status</span>
+                            <span
+                                className={`${isOnline ? 'translate-x-5' : 'translate-x-1'} inline-block h-3 w-3 transform rounded-full bg-white transition-transform`}
+                            />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex items-center justify-between md:justify-end gap-2 md:gap-4 w-full md:w-auto overflow-x-auto scrollbar-hide pb-1 md:pb-0">
+                    <div className="hidden md:flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
+                        <span className="text-xs font-medium text-foreground">{isOnline ? 'On' : 'Off'}</span>
+                        <button
+                            onClick={toggleOnlineStatus}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sunset focus:ring-offset-2 ml-2 ${isOnline ? 'bg-green-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+                        >
                             <span
                                 className={`${isOnline ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
                             />
                         </button>
                     </div>
-                </div>
-                <div className="flex items-center gap-4">
-                    {billRequests.length > 0 && (
-                        <div className="flex items-center gap-2 text-xs font-bold bg-blue-500/10 text-blue-600 px-3 py-1.5 rounded-full border border-blue-200 animate-pulse">
-                            <DollarSign size={12} className="fill-blue-600" />
-                            {billRequests.length} Bill Req
+
+                    <div className="flex items-center gap-2 ml-auto md:ml-0">
+                        {billRequests.length > 0 && (
+                            <div className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs font-bold bg-blue-500/10 text-blue-600 px-2 md:px-3 py-1 md:py-1.5 rounded-full border border-blue-200 animate-pulse whitespace-nowrap">
+                                <DollarSign size={12} className="fill-blue-600" />
+                                {billRequests.length} Bills
+                            </div>
+                        )}
+                        {serviceRequests.length > 0 && (
+                            <div className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs font-bold bg-yellow-500/10 text-yellow-600 px-2 md:px-3 py-1 md:py-1.5 rounded-full border border-yellow-200 animate-pulse whitespace-nowrap">
+                                <Bell size={12} className="fill-yellow-600" />
+                                {serviceRequests.length} Reqs
+                            </div>
+                        )}
+                        <div className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs font-medium bg-green-500/10 text-green-600 px-2 md:px-3 py-1 md:py-1.5 rounded-full border border-green-200 whitespace-nowrap">
+                            <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-green-500 animate-pulse"></div>
+                            Live
                         </div>
-                    )}
-                    {serviceRequests.length > 0 && (
-                        <div className="flex items-center gap-2 text-xs font-bold bg-yellow-500/10 text-yellow-600 px-3 py-1.5 rounded-full border border-yellow-200 animate-pulse">
-                            <Bell size={12} className="fill-yellow-600" />
-                            {serviceRequests.length} Request{serviceRequests.length !== 1 && 's'}
-                        </div>
-                    )}
-                    <div className="flex items-center gap-2 text-xs font-medium bg-green-500/10 text-green-600 px-3 py-1.5 rounded-full border border-green-200">
-                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                        Live
                     </div>
                 </div>
             </header>
@@ -496,8 +519,10 @@ function WaiterPOSPageContent() {
                                 {tables.map((table) => {
                                     // Robust check for ownership: Table assigned OR Active Order assigned
                                     const tableOrder = orders.find(o => o.tableId === table.id && !o.isSessionClosed && o.status !== 'COMPLETED');
-                                    const isAttachedToOrder = tableOrder && tableOrder.waiterId && (tableOrder.waiterId._id || tableOrder.waiterId) === userId;
-                                    const isAssignedToTable = table.assignedWaiterId && userId && table.assignedWaiterId.toString() === userId.toString();
+                                    const isAttachedToOrder = tableOrder && tableOrder.waiterId && (tableOrder.waiterId._id || tableOrder.waiterId).toString() === userId.toString();
+
+                                    const assignedId = table.assignedWaiterId ? (table.assignedWaiterId._id || table.assignedWaiterId) : null;
+                                    const isAssignedToTable = assignedId && userId && assignedId.toString() === userId.toString();
 
                                     const isMyTable = isAssignedToTable || isAttachedToOrder;
                                     const isReady = tableOrder?.status === 'READY';

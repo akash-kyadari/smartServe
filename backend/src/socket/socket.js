@@ -44,20 +44,20 @@ io.on("connection", (socket) => {
             socket.join(`user_${userId}`);
             console.log(`Socket ${socket.id} joined user room: user_${userId}`);
 
-            // Emit online status if DB says they are active
+            // Update DB Status to Online
             try {
-                const restaurant = await Restaurant.findById(restroId);
-                if (restaurant) {
-                    const staffMember = restaurant.staff.find(s => s.user.toString() === userId);
-                    if (staffMember && staffMember.isActive) {
-                        io.to(`restro_staff_${restroId}`).emit("staff_update", {
-                            staffId: userId,
-                            isActive: true
-                        });
-                    }
-                }
+                await Restaurant.updateOne(
+                    { _id: restroId, "staff.user": userId },
+                    { $set: { "staff.$.isActive": true } }
+                );
+
+                // Broadcast update immediately
+                io.to(`restro_staff_${restroId}`).emit("staff_update", {
+                    staffId: userId,
+                    isActive: true
+                });
             } catch (err) {
-                console.error("Error fetching status on join:", err);
+                console.error("Error setting staff status to online:", err);
             }
         }
     });
@@ -73,6 +73,12 @@ io.on("connection", (socket) => {
     socket.on("join_public_room", (restroId) => {
         socket.join(`restro_public_${restroId}`);
         console.log(`Socket ${socket.id} joined public room: restro_public_${restroId}`);
+    });
+
+    // Join Owner Room (Private Updates like Reviews)
+    socket.on("join_owner_room", (restroId) => {
+        socket.join(`restro_owner_${restroId}`);
+        console.log(`Socket ${socket.id} joined owner room: restro_owner_${restroId}`);
     });
 
     // Handle Disconnect
@@ -95,11 +101,20 @@ io.on("connection", (socket) => {
             }
 
             if (!stillConnected) {
-                // If no other sessions, emit offline status (view-only change)
-                io.to(roomId).emit("staff_update", {
-                    staffId: socket.userId,
-                    isActive: false
-                });
+                // Update DB Status to Offline
+                try {
+                    await Restaurant.updateOne(
+                        { _id: socket.restroId, "staff.user": socket.userId },
+                        { $set: { "staff.$.isActive": false } }
+                    );
+
+                    io.to(roomId).emit("staff_update", {
+                        staffId: socket.userId,
+                        isActive: false
+                    });
+                } catch (err) {
+                    console.error("Error setting staff status to offline:", err);
+                }
             }
         }
     });

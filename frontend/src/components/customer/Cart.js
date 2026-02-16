@@ -19,7 +19,7 @@ export default function Cart({ items, updateQuantity, handlePlaceOrder, onClear,
     const handleSubmit = (e) => {
         e.preventDefault();
         // Validation for stock/availability
-        const unavailableItems = items.filter(item => !item.isAvailable || (item.stock !== null && item.stock <= 0));
+        const unavailableItems = items.filter(item => !item.isAvailable);
 
         if (unavailableItems.length > 0) {
             alert(`Please remove unavailable items: ${unavailableItems.map(i => i.name).join(', ')}`);
@@ -114,8 +114,7 @@ export default function Cart({ items, updateQuantity, handlePlaceOrder, onClear,
                                 {/* Items */}
                                 <div className="space-y-3">
                                     {items.map((item) => {
-                                        const maxReached = item.stock !== null && item.stock !== undefined && item.quantity >= item.stock;
-                                        const isUnavailable = !item.isAvailable || (item.stock !== null && item.stock <= 0);
+                                        const isUnavailable = !item.isAvailable;
 
                                         return (
                                             <div key={item._id} className={`flex gap-3 items-center bg-card/50 p-2 rounded-xl border ${isUnavailable ? 'border-red-200 bg-red-50/50' : 'border-border/50'}`}>
@@ -128,13 +127,11 @@ export default function Cart({ items, updateQuantity, handlePlaceOrder, onClear,
                                                     <p className={`font-bold text-sm truncate ${isUnavailable ? 'text-red-500 line-through' : 'text-foreground'}`}>{item.name}</p>
                                                     {!isUnavailable && <p className="text-xs text-primary font-bold">₹{item.price * item.quantity}</p>}
 
-                                                    {isUnavailable ? (
+                                                    {isUnavailable && (
                                                         <span className="text-[10px] text-red-600 font-bold flex items-center gap-1">
                                                             <X size={10} /> Currently Unavailable
                                                         </span>
-                                                    ) : maxReached ? (
-                                                        <span className="text-[10px] text-amber-500 font-bold">Max stock reached</span>
-                                                    ) : null}
+                                                    )}
                                                 </div>
 
                                                 <div className="flex items-center gap-2 bg-background border border-border rounded-lg p-0.5 shadow-sm">
@@ -146,9 +143,9 @@ export default function Cart({ items, updateQuantity, handlePlaceOrder, onClear,
                                                     </button>
                                                     <span className="text-xs font-bold w-4 text-center tabular-nums">{item.quantity}</span>
                                                     <button
-                                                        onClick={() => !maxReached && !isUnavailable && updateQuantity(item, 1)}
-                                                        disabled={maxReached || isUnavailable}
-                                                        className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors ${maxReached || isUnavailable ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-secondary text-foreground'}`}
+                                                        onClick={() => !isUnavailable && updateQuantity(item, 1)}
+                                                        disabled={isUnavailable}
+                                                        className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors ${isUnavailable ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-secondary text-foreground'}`}
                                                     >
                                                         <Plus className="w-3 h-3" />
                                                     </button>

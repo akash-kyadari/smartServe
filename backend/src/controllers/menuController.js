@@ -27,7 +27,7 @@ export const getMenuItems = async (req, res) => {
 export const addMenuItem = async (req, res) => {
     try {
         const { restaurantId } = req.params;
-        const { name, description, price, category, isVeg, stock, isAvailable, preparationTime, image } = req.body;
+        const { name, description, price, category, isVeg, servingInfo, isAvailable, preparationTime, image } = req.body;
 
         // Validation
         if (!name || !price) {
@@ -56,7 +56,7 @@ export const addMenuItem = async (req, res) => {
             category: category || "Uncategorized",
             isVeg: isVeg !== undefined ? Boolean(isVeg) : true,
             isAvailable: isAvailable !== undefined ? Boolean(isAvailable) : true,
-            stock: stock !== undefined && stock !== "" ? Number(stock) : null,
+            servingInfo: servingInfo || "",
             preparationTime: preparationTime ? Number(preparationTime) : 15,
             image: image || "",
             addons: []
@@ -117,14 +117,14 @@ export const updateMenuItem = async (req, res) => {
         if (updates.isAvailable !== undefined) menuItem.isAvailable = Boolean(updates.isAvailable);
         if (updates.preparationTime !== undefined) menuItem.preparationTime = Number(updates.preparationTime);
         if (updates.image !== undefined) menuItem.image = updates.image;
-        if (updates.stock !== undefined) menuItem.stock = updates.stock === "" || updates.stock === null ? null : Number(updates.stock);
+        if (updates.servingInfo !== undefined) menuItem.servingInfo = updates.servingInfo;
 
         await restaurant.save();
 
         // Emit Stock/Availability Update (or full update really)
         io.to(`restro_public_${restaurantId}`).emit("menu_stock_update", [{
             _id: menuItem._id,
-            stock: menuItem.stock,
+            servingInfo: menuItem.servingInfo,
             isAvailable: menuItem.isAvailable,
             // also include price/name/etc if needed, but for now stock/avail is critical realtime
             name: menuItem.name,
@@ -199,7 +199,7 @@ export const toggleMenuItemAvailability = async (req, res) => {
         io.to(`restro_public_${restaurantId}`).emit("menu_stock_update", [{
             _id: menuItem._id,
             isAvailable: menuItem.isAvailable,
-            stock: menuItem.stock
+            servingInfo: menuItem.servingInfo
         }]);
 
         res.status(200).json({

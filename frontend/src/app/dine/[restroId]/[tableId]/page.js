@@ -172,7 +172,7 @@ export default function TablePage({ params }) {
                         // Careful not to overwrite quantity or addons
                         newCart[update._id] = {
                             ...newCart[update._id],
-                            stock: update.stock,
+                            servingInfo: update.servingInfo,
                             isAvailable: update.isAvailable,
                             name: update.name || newCart[update._id].name, // If name changed
                             price: update.price || newCart[update._id].price

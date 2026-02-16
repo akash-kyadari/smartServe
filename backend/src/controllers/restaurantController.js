@@ -128,22 +128,7 @@ export const getMyRestaurants = async (req, res) => {
             path: 'staff.user',
             select: 'name email avatar'
         });
-        // Compute status for each restaurant's staff
-        const restaurantsWithStatus = restaurants.map(r => {
-            const rObj = r.toObject();
-            if (rObj.staff) {
-                rObj.staff = rObj.staff.map(member => {
-                    if (member.user) {
-                        const isConnected = isUserConnected(rObj._id, member.user._id);
-                        member.isActive = member.isActive && isConnected;
-                    }
-                    return member;
-                });
-            }
-            return rObj;
-        });
-
-        res.status(200).json({ success: true, restaurants: restaurantsWithStatus });
+        res.status(200).json({ success: true, restaurants });
     } catch (error) {
         logger.error("Error in getMyRestaurants:", error.message);
         res.status(500).json({ success: false, message: "Error fetching restaurants", error: error.message });
@@ -163,25 +148,6 @@ export const getRestaurantById = async (req, res) => {
 
         // Convert to object to modify staff status
         const restaurantObj = restaurant.toObject();
-
-        // Compute active status for staff based on socket connection
-        if (restaurantObj.staff) {
-            // Check Access: User must be Owner or Staff
-            const isOwner = restaurantObj.owner.toString() === req.user._id.toString();
-            const isStaff = restaurantObj.staff.some(s => s.user && s.user._id.toString() === req.user._id.toString());
-
-            if (!isOwner && !isStaff) {
-                return res.status(403).json({ success: false, message: "Not authorized to view this restaurant" });
-            }
-
-            restaurantObj.staff = restaurantObj.staff.map(member => {
-                if (member.user) {
-                    const isConnected = isUserConnected(req.params.id, member.user._id);
-                    member.isActive = member.isActive && isConnected;
-                }
-                return member;
-            });
-        }
 
         res.status(200).json({ success: true, restaurant: restaurantObj });
     } catch (error) {
@@ -518,6 +484,9 @@ export const addReview = async (req, res) => {
         };
 
         await restaurant.save();
+
+        // Notify owner dashboard
+        io.to(`restro_owner_${id}`).emit("review_added", newReview);
 
         res.status(200).json({ success: true, message: "Review added successfully" });
     } catch (error) {

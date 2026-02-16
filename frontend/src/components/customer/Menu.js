@@ -199,20 +199,18 @@ export default function Menu({ menu, addToCart, removeFromCart, cartItems }) {
 
 // Extracted for performance & layout clarity
 function MenuItem({ item, qty, addToCart, removeFromCart }) {
-    const isOutOfStock = item.stock !== null && item.stock !== undefined && item.stock <= 0;
     const isUnavailable = !item.isAvailable;
-    const maxReached = item.stock !== null && item.stock !== undefined && qty >= item.stock;
 
     return (
         <div className={`
             flex justify-between items-start gap-3 p-3 rounded-2xl border transition-all duration-300 relative group shadow-sm 
-            ${isOutOfStock || isUnavailable
+            ${isUnavailable
                 ? 'border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/10 opacity-60 grayscale-[0.5]'
                 : 'border-gray-100 dark:border-gray-800 bg-white/50 dark:bg-gray-900/20 hover:bg-white dark:hover:bg-gray-900 hover:border-black/5 dark:hover:border-white/10 hover:shadow-md'}
         `}>
 
             {/* Left Content */}
-            <div className={`flex-1 space-y-1.5 min-w-0 py-0.5 ${isOutOfStock || isUnavailable ? 'opacity-50' : ''}`}>
+            <div className={`flex-1 space-y-1.5 min-w-0 py-0.5 ${isUnavailable ? 'opacity-50' : ''}`}>
                 {/* Veg/Non-Veg & Rating */}
                 <div className="flex items-center gap-2">
                     <div className={`
@@ -227,10 +225,10 @@ function MenuItem({ item, qty, addToCart, removeFromCart }) {
                             <Star size={10} className="fill-current" /> {item.rating}
                         </div>
                     )}
-                    {/* Stock Badge */}
-                    {!isOutOfStock && !isUnavailable && item.stock !== null && (
-                        <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${item.stock <= 5 ? 'text-red-500 bg-red-50 dark:bg-red-900/20 animate-pulse' : 'text-gray-500 bg-gray-100 dark:bg-gray-800'}`}>
-                            {item.stock <= 5 ? `Only ${item.stock} left` : `${item.stock} available`}
+                    {/* Serving Info Badge */}
+                    {item.servingInfo && (
+                        <div className="text-[10px] font-bold px-1.5 py-0.5 rounded text-gray-500 bg-gray-100 dark:bg-gray-800">
+                            {item.servingInfo}
                         </div>
                     )}
                 </div>
@@ -256,7 +254,7 @@ function MenuItem({ item, qty, addToCart, removeFromCart }) {
                         <img
                             src={item.image}
                             alt={item.name}
-                            className={`w-full h-full object-cover transform transition-transform duration-500 ease-in-out ${isOutOfStock || isUnavailable ? 'grayscale' : 'group-hover:scale-105'}`}
+                            className={`w-full h-full object-cover transform transition-transform duration-500 ease-in-out ${isUnavailable ? 'grayscale' : 'group-hover:scale-105'}`}
                             loading="lazy"
                         />
                     ) : (
@@ -268,9 +266,9 @@ function MenuItem({ item, qty, addToCart, removeFromCart }) {
 
                 {/* ADD Button */}
                 <div className="absolute -bottom-2 w-20 z-10">
-                    {isOutOfStock || !item.isAvailable ? (
+                    {!item.isAvailable ? (
                         <div className="w-full h-7 bg-gray-200 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-gray-700 rounded-lg font-bold text-[10px] uppercase tracking-wide flex items-center justify-center cursor-not-allowed">
-                            {!item.isAvailable ? 'Unavailable' : 'Sold Out'}
+                            Unavailable
                         </div>
                     ) : qty > 0 ? (
                         <motion.div
@@ -286,9 +284,8 @@ function MenuItem({ item, qty, addToCart, removeFromCart }) {
                             </button>
                             <span className="tabular-nums px-1">{qty}</span>
                             <button
-                                onClick={() => !maxReached && addToCart(item)}
-                                disabled={maxReached}
-                                className={`w-6 h-full flex items-center justify-center transition-colors ${maxReached ? 'bg-gray-600 cursor-not-allowed text-gray-400' : 'hover:bg-gray-800 dark:hover:bg-gray-200 active:bg-gray-700'}`}
+                                onClick={() => addToCart(item)}
+                                className={`w-6 h-full flex items-center justify-center transition-colors hover:bg-gray-800 dark:hover:bg-gray-200 active:bg-gray-700`}
                             >
                                 <Plus size={10} strokeWidth={3} />
                             </button>
