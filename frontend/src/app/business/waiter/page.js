@@ -130,7 +130,8 @@ function WaiterPOSPageContent() {
 
     // Socket Integration
     useEffect(() => {
-        if (!restaurantId) return;
+        // Strict check: strictly require userId to prevent anonymous socket connections
+        if (!restaurantId || !userId) return;
 
         socketService.connect();
         console.log("Joined Staff Room:", restaurantId);
@@ -209,7 +210,10 @@ function WaiterPOSPageContent() {
         };
 
         const handleStaffUpdate = ({ staffId, isActive }) => {
-            if (staffId === userId || staffId === user?._id) {
+            // LATCH PROTECTION: Ignore background socket noise while manually toggling
+            if (isTogglingRef.current) return;
+
+            if (String(staffId) === String(userId) || String(staffId) === String(user?._id)) {
                 setIsOnline(isActive);
             }
         };

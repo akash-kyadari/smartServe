@@ -124,7 +124,7 @@ io.on("connection", (socket) => {
                     const s = io.sockets.sockets.get(sid);
                     // Check if another socket exists for the same user ID
                     // We must ensure we don't count the current disconnecting socket
-                    if (s && s.userId === socket.userId && s.id !== socket.id) {
+                    if (s && s.userId && s.userId.toString() === socket.userId.toString() && s.id !== socket.id) {
                         stillConnected = true;
                         break;
                     }
