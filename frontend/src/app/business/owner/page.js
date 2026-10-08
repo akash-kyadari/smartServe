@@ -237,7 +237,7 @@ function BusinessOwnerPageContent() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="flex justify-between items-end mb-6">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">My Restaurants</h2>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Your Restaurants</h2>
                     <p className="text-gray-500 dark:text-gray-400 text-sm">Manage your outlets and settings.</p>
                 </div>
 
